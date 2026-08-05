@@ -1,18 +1,41 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import {
+  Archivo_400Regular,
+  Archivo_500Medium,
+} from '@expo-google-fonts/archivo';
+import {
+  BigShouldersDisplay_700Bold,
+  BigShouldersDisplay_800ExtraBold,
+} from '@expo-google-fonts/big-shoulders-display';
+import {
+  JetBrainsMono_400Regular,
+  JetBrainsMono_700Bold,
+} from '@expo-google-fonts/jetbrains-mono';
+import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
-
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { useEffect } from 'react';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
-  );
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    BigShouldersDisplay_700Bold,
+    BigShouldersDisplay_800ExtraBold,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_700Bold,
+    Archivo_400Regular,
+    Archivo_500Medium,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  return <Stack screenOptions={{ headerShown: false }} />;
 }

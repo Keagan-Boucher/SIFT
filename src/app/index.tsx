@@ -1,98 +1,160 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { ActionBar } from '@/components/sift/ActionBar';
+import { AlertLogPopup } from '@/components/sift/AlertLogPopup';
+import { ListingDetailPopup } from '@/components/sift/ListingDetailPopup';
+import { NoteBanner } from '@/components/sift/NoteBanner';
+import { Rail } from '@/components/sift/Rail';
+import { SavedPill, SavedStrip } from '@/components/sift/SavedStrip';
+import { ConfirmView } from '@/components/sift/views/ConfirmView';
+import { DashboardView } from '@/components/sift/views/DashboardView';
+import { LiveView } from '@/components/sift/views/LiveView';
+import { ResultsView } from '@/components/sift/views/ResultsView';
+import { SavedView } from '@/components/sift/views/SavedView';
+import { SourcesView } from '@/components/sift/views/SourcesView';
+import { SESSION_CODE } from '@/constants/sift-mock-data';
+import { SiftColors, SiftSpacing } from '@/constants/sift-theme';
+import { useLockLandscape } from '@/hooks/use-lock-landscape';
+import { useOrientation } from '@/hooks/use-orientation';
+import { useSiftFlow } from '@/hooks/use-sift-flow';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
+const VIEW_BY_SCREEN = {
+  sources: SourcesView,
+  live: LiveView,
+  confirm: ConfirmView,
+  results: ResultsView,
+  dashboard: DashboardView,
+  saved: SavedView,
+};
+
+export default function SiftAppScreen() {
+  useLockLandscape();
+  const orientation = useOrientation();
+  const flow = useSiftFlow();
+  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, listing, showListing, hasDrops, actions } = flow;
+
+  const ActiveView = VIEW_BY_SCREEN[state.screen];
+
+  const notes = state.notes.map((n) => (
+    <NoteBanner key={n.id} kind={n.kind} heading={n.heading} body={n.body} onDismiss={() => actions.dismissNote(n.id)} />
+  ));
+
+  const popups = (
+    <>
+      {showListing && listing && (
+        <View style={[styles.popupAnchor, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
+          <ListingDetailPopup listing={listing} onClose={actions.closeListing} />
+        </View>
+      )}
+      {state.showArchive && (
+        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
+          <AlertLogPopup entries={archiveLabeled} count={String(archiveCount).padStart(2, '0')} onClose={actions.toggleArchive} />
+        </View>
+      )}
+    </>
+  );
+
+  const actionBar = (
+    <ActionBar
+      secondaryLabel={nav.secondaryLabel}
+      onSecondary={nav.secondaryAction}
+      primaryLabel={nav.primaryLabel}
+      onPrimary={nav.primaryAction}
+      primaryDisabled={nav.primaryDisabled}
+      alertCount={alertCount}
+      hasAlerts={hasAlerts}
+      onToggleAlerts={actions.toggleArchive}
+      statusLine={statusLine}
+    />
+  );
+
+  const scrollableContent = (
+    <ScrollView
+      style={styles.activeScroll}
+      contentContainerStyle={styles.activeScrollContent}
+      showsVerticalScrollIndicator={false}>
+      {notes.length > 0 && <View style={styles.notesCol}>{notes}</View>}
+      <View style={styles.activeArea}>
+        <ActiveView flow={flow} orientation={orientation} />
+      </View>
+    </ScrollView>
+  );
+
+  if (orientation === 'landscape') {
     return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <View style={styles.landscapeBody}>
+          <Rail screenName={railName} connection={railConnection} sourceCount={state.sources.length} sessionCode={SESSION_CODE} />
+          <SavedStrip active={state.screen === 'saved'} hasDrops={hasDrops} onPress={actions.openSaved} />
+          <View style={styles.contentCol}>
+            {scrollableContent}
+            {popups}
+          </View>
+        </View>
+        {actionBar}
+      </SafeAreaView>
     );
   }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
-
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <View style={styles.portraitBody}>
+        <View style={styles.portraitHeaderBar}>
+          <Text style={styles.portraitTitle}>{railName}</Text>
+          <View style={styles.portraitHeaderRight}>
+            <View style={[styles.connectionPill, railConnection === 'LIVE' && styles.connectionPillLive]}>
+              <Text style={[styles.connectionPillText, railConnection === 'LIVE' && styles.connectionPillTextLive]}>{railConnection}</Text>
+            </View>
+            <SavedPill hasDrops={hasDrops} onPress={actions.openSaved} />
+            <Text style={styles.sessionCode}>{SESSION_CODE}</Text>
+          </View>
+        </View>
+        <View style={styles.contentCol}>
+          {scrollableContent}
+          {popups}
+        </View>
+      </View>
+      {actionBar}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
+  safeArea: { flex: 1, backgroundColor: SiftColors.void },
+  landscapeBody: { flex: 1, flexDirection: 'row', minHeight: 0, minWidth: 0 },
+  contentCol: { flex: 1, minHeight: 0, minWidth: 0, position: 'relative' },
+  notesCol: { gap: 1 },
+  activeScroll: { flex: 1 },
+  activeScrollContent: { flexGrow: 1, backgroundColor: SiftColors.void },
+  activeArea: { flex: 1, minHeight: 0 },
+  portraitBody: { flex: 1, minHeight: 0 },
+  portraitHeaderBar: {
+    height: 48,
+    backgroundColor: SiftColors.carbon,
+    borderBottomWidth: 1,
+    borderBottomColor: SiftColors.graphite,
     flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    justifyContent: 'space-between',
+    paddingHorizontal: SiftSpacing.space4,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
+  portraitTitle: {
+    fontFamily: 'BigShouldersDisplay_700Bold',
+    fontSize: 20,
+    lineHeight: 20,
+    letterSpacing: -0.2,
     textTransform: 'uppercase',
+    color: SiftColors.bone,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  portraitHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  connectionPill: { paddingVertical: 3, paddingHorizontal: 6 },
+  connectionPillLive: { backgroundColor: SiftColors.mint },
+  connectionPillText: { fontFamily: 'JetBrainsMono_700Bold', fontSize: 11, letterSpacing: 0.88, color: SiftColors.boneDim },
+  connectionPillTextLive: { color: SiftColors.void },
+  sessionCode: { fontFamily: 'JetBrainsMono_400Regular', fontSize: 9, letterSpacing: 0.9, color: SiftColors.boneDim },
+  popupAnchor: { position: 'absolute', zIndex: 5 },
+  popupAnchorAbove: { zIndex: 6 },
+  popupAnchorLandscape: { right: 12, bottom: 12 },
+  popupAnchorPortrait: { left: 12, right: 12, bottom: 12 },
 });
