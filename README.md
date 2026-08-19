@@ -18,7 +18,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-iOS_·_Android_·_Web-lightgrey)](#5-run-the-app)
 [![Orientation](https://img.shields.io/badge/orientation-landscape_first-3FE383)](#landscape-support)
 [![Tests](https://img.shields.io/badge/extraction_tests-11_passing-3FE383?logo=nodedotjs&logoColor=white)](#testing)
-[![License](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/licence-AGPLv3-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/status-in_development-F0552E)](#project-status)
 
 </div>
