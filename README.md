@@ -590,7 +590,7 @@ Work happens on `main` with focused commits per unit of work. If you are extendi
 
 ## Licence
 
-Released under the [MIT Licence](LICENSE).
+Released under the [AGPLv3 Licence](LICENSE).
 
 <div align="center">
 
