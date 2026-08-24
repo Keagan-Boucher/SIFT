@@ -32,11 +32,11 @@ export default function SiftAppScreen() {
   useLockLandscape();
   const orientation = useOrientation();
   const flow = useSiftFlow();
-  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, listing, showListing, hasDrops, actions } = flow;
+  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, actions } = flow;
 
   const ActiveView = VIEW_BY_SCREEN[state.screen];
 
-  const notes = state.notes.map((n) => (
+  const notes = activeNotes.map((n) => (
     <NoteBanner key={n.id} kind={n.kind} heading={n.heading} body={n.body} onDismiss={() => actions.dismissNote(n.id)} />
   ));
 
@@ -47,7 +47,7 @@ export default function SiftAppScreen() {
           <ListingDetailPopup listing={listing} onClose={actions.closeListing} />
         </View>
       )}
-      {state.showArchive && (
+      {showArchive && (
         <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
           <AlertLogPopup entries={archiveLabeled} count={String(archiveCount).padStart(2, '0')} onClose={actions.toggleArchive} />
         </View>
@@ -85,7 +85,7 @@ export default function SiftAppScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.landscapeBody}>
-          <Rail screenName={railName} connection={railConnection} sourceCount={state.sources.length} sessionCode={SESSION_CODE} />
+          <Rail screenName={railName} connection={railConnection} sourceCount={sources.length} sessionCode={SESSION_CODE} />
           <SavedStrip active={state.screen === 'saved'} hasDrops={hasDrops} onPress={actions.openSaved} />
           <View style={styles.contentCol}>
             {scrollableContent}

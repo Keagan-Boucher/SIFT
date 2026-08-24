@@ -16,10 +16,10 @@ interface LiveViewProps {
 }
 
 export function LiveView({ flow }: LiveViewProps) {
-  const { state, resolved } = flow;
-  const heading = state.running ? 'SEARCH_RUNNING' : 'SEARCH_COMPLETE';
-  const suffix = `${resolved}/${state.sources.length}`;
-  const slotCount = Math.max(0, 4 - state.tiles.length);
+  const { state, resolved, running, complete, sources, tiles, liveInsight } = flow;
+  const heading = running ? 'SEARCH_RUNNING' : 'SEARCH_COMPLETE';
+  const suffix = `${resolved}/${sources.length}`;
+  const slotCount = Math.max(0, 4 - tiles.length);
 
   return (
     <View style={styles.wrap}>
@@ -29,8 +29,8 @@ export function LiveView({ flow }: LiveViewProps) {
       </View>
 
       <View style={styles.tileRow}>
-        {state.running && <ScanSweep />}
-        {state.tiles.map((tile, i) => (
+        {running && <ScanSweep />}
+        {tiles.map((tile, i) => (
           <CornerBrackets key={tile.retailer} active={state.selected === i}>
             <Pressable onPress={() => flow.actions.selectTile(i)} style={styles.tileCol}>
               <ResultTile tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
@@ -53,9 +53,9 @@ export function LiveView({ flow }: LiveViewProps) {
         ))}
       </View>
 
-      {state.complete && (
+      {complete && (
         <InsightCard heading="WHY_THIS_PRICE" style={styles.insight}>
-          R2 899 is the lowest of 4 sources, 8% below their median of R3 195.
+          {liveInsight}
         </InsightCard>
       )}
     </View>

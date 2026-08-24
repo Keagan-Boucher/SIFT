@@ -13,7 +13,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ flow, orientation }: DashboardViewProps) {
-  const { resultSuffix, spreadPoints, spreadLabel, ladder, historyBars } = flow;
+  const { resultSuffix, spreadPoints, spreadLabel, ladder, historyBars, historySummary } = flow;
 
   const history = (
     <View style={styles.historySection}>
@@ -26,7 +26,7 @@ export function DashboardView({ flow, orientation }: DashboardViewProps) {
           />
         ))}
       </View>
-      <Text style={styles.historySummary}>30-DAY LOW R2 780 · MEDIAN R3 150 · TODAY R2 899, FALLING</Text>
+      <Text style={styles.historySummary}>{historySummary}</Text>
     </View>
   );
 

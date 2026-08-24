@@ -12,14 +12,12 @@ interface ResultsViewProps {
   orientation: Orientation;
 }
 
-const METADATA_LINES = ['1 SOURCE REMOVED, ROBOTS.TXT', '2 PRICES FROM HEURISTIC PARSING', 'LAST SCRAPE 00:04 AGO'];
-
 export function ResultsView({ flow, orientation }: ResultsViewProps) {
-  const { state, resultSuffix } = flow;
+  const { resultSuffix, tiles, resultInsight, resultMetadata } = flow;
 
-  const tiles = (
+  const tileGrid = (
     <View style={styles.tiles}>
-      {state.tiles.map((tile) => (
+      {tiles.map((tile) => (
         <View key={tile.retailer} style={styles.tileCol}>
           <ResultTile tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
           <Text style={styles.tileDomain} numberOfLines={1}>
@@ -32,7 +30,7 @@ export function ResultsView({ flow, orientation }: ResultsViewProps) {
 
   const metadata = (
     <View style={styles.metadata}>
-      {METADATA_LINES.map((line) => (
+      {resultMetadata.map((line) => (
         <Text key={line} style={styles.metaLine}>
           {line}
         </Text>
@@ -44,11 +42,10 @@ export function ResultsView({ flow, orientation }: ResultsViewProps) {
     return (
       <View style={styles.wrap}>
         <CommandHeading sigil="//" text="SEARCH_COMPLETE" suffix={resultSuffix} />
-        {tiles}
+        {tileGrid}
         <View style={styles.bottomRow}>
           <InsightCard heading="WHY_THIS_PRICE" style={styles.insight}>
-            R2 899 is a good price. It is the lowest of your 4 sources and 4% above the lowest figure recorded
-            for this product in the last 30 days.
+            {resultInsight}
           </InsightCard>
           {metadata}
         </View>
@@ -59,10 +56,9 @@ export function ResultsView({ flow, orientation }: ResultsViewProps) {
   return (
     <View style={styles.wrap}>
       <CommandHeading sigil="//" text="SEARCH_COMPLETE" suffix={resultSuffix} />
-      {tiles}
+      {tileGrid}
       <InsightCard heading="WHY_THIS_PRICE">
-        R2 899 is a good price. It is the lowest of your 4 sources and 4% above the lowest figure recorded for
-        this product in the last 30 days.
+        {resultInsight}
       </InsightCard>
       {metadata}
     </View>

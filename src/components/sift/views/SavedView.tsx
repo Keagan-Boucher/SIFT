@@ -15,12 +15,12 @@ interface SavedViewProps {
 }
 
 export function SavedView({ flow, orientation }: SavedViewProps) {
-  const { state, actions } = flow;
+  const { saved, actions } = flow;
 
   return (
     <View style={styles.wrap}>
-      <CommandHeading sigil="//" text="SAVED" suffix={String(state.saved.length).padStart(2, '0')} />
-      {state.saved.map((item) => {
+      <CommandHeading sigil="//" text="SAVED" suffix={String(saved.length).padStart(2, '0')} />
+      {saved.map((item) => {
         const dropped = item.justDropped;
         const deltaLine = dropped ? `${fmtPrice(item.wasValue!)} → ${fmtPrice(item.value)}, ▼ ${Math.round(((item.wasValue! - item.value) / item.wasValue!) * 1000) / 10}% DOWN` : null;
         const tagLabel = dropped ? 'DROPPED' : item.checked ? 'NO CHANGE' : 'WATCHING';

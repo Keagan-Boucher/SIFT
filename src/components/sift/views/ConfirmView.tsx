@@ -5,7 +5,6 @@ import { ConfirmMatchCandidate } from '@/components/sift/ConfirmMatchCandidate';
 import { CornerBrackets } from '@/components/sift/CornerBrackets';
 import { InsightCard } from '@/components/sift/InsightCard';
 import { SiftSpacing, SiftType, SiftColors } from '@/constants/sift-theme';
-import { CANDIDATES } from '@/constants/sift-mock-data';
 import type { Orientation } from '@/hooks/use-orientation';
 import type { SiftFlow } from '@/hooks/use-sift-flow';
 
@@ -15,12 +14,12 @@ interface ConfirmViewProps {
 }
 
 export function ConfirmView({ flow, orientation }: ConfirmViewProps) {
-  const { state, candidateSelectedLabel, actions } = flow;
+  const { state, candidateSelectedLabel, candidates, confirmSuffix, confirmInsight, actions } = flow;
 
   const list = (
     <View style={styles.list}>
-      <CommandHeading sigil=">" text="CONFIRM" suffix="2_LOW_CONFIDENCE" />
-      {CANDIDATES.map((c, i) => (
+      <CommandHeading sigil=">" text="CONFIRM" suffix={confirmSuffix} />
+      {candidates.map((c, i) => (
         <Pressable key={c.title} onPress={() => actions.chooseCandidate(i)} style={styles.candidate}>
           <CornerBrackets active={state.chosen === i}>
             <ConfirmMatchCandidate title={c.title} price={c.price} confidence={c.confidence} />
@@ -34,8 +33,7 @@ export function ConfirmView({ flow, orientation }: ConfirmViewProps) {
   const sidebar = (
     <View style={styles.sidebar}>
       <InsightCard heading="WHY_YOU_PICK">
-        evetech.co.za returned two listings for this query and neither scored above 60%. The one you pick is
-        the one compared, and it teaches the ranking for next time.
+        {confirmInsight}
       </InsightCard>
       {orientation === 'landscape' && <Text style={styles.selectedLabel}>SELECTED: {candidateSelectedLabel}</Text>}
     </View>
@@ -54,8 +52,7 @@ export function ConfirmView({ flow, orientation }: ConfirmViewProps) {
     <View style={styles.col}>
       {list}
       <InsightCard heading="WHY_YOU_PICK">
-        evetech.co.za returned two listings for this query and neither scored above 60%. The one you pick is
-        the one compared.
+        {confirmInsight}
       </InsightCard>
     </View>
   );

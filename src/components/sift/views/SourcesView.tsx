@@ -13,12 +13,12 @@ interface SourcesViewProps {
 }
 
 export function SourcesView({ flow, orientation }: SourcesViewProps) {
-  const { state, sourceCountLabel, recentCount, actions } = flow;
+  const { state, sourceCountLabel, recentCount, sources, recents, actions } = flow;
 
   const sourcesBlock = (
     <View style={orientation === 'landscape' ? styles.sourcesColLandscape : styles.sourcesColPortrait}>
       <CommandHeading sigil="//" text="SOURCES" suffix={sourceCountLabel} />
-      {state.sources.map((s) => (
+      {sources.map((s) => (
         <SourceChip key={s.domain} domain={s.domain} status={s.status} onPress={() => actions.removeSource(s.domain)} />
       ))}
       <View style={styles.addRow}>
@@ -57,7 +57,7 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
   const recentBlock = (
     <View style={styles.recentCol}>
       <CommandHeading sigil="//" text="RECENT" suffix={recentCount} />
-      {state.recents.map((r) => (
+      {recents.map((r) => (
         <Pressable key={r.name} style={styles.recentRow} onPress={() => actions.chooseRecent(r.name)}>
           <Text style={styles.recentName} numberOfLines={1}>
             {r.name}

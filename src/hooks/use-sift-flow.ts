@@ -1,283 +1,153 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { SiftColors } from '@/constants/sift-theme';
-import {
-  CANDIDATES,
-  DEFAULT_QUERY,
-  HISTORY,
-  INITIAL_NOTES,
-  INITIAL_RECENTS,
-  INITIAL_SAVED,
-  SESSION_CODE,
-  SOURCES,
-  STREAM_SPEED_MS,
-  TILES,
-  type MockNote,
-  type MockRecent,
-  type MockSavedItem,
-  type MockSource,
-  type MockTile,
-} from '@/constants/sift-mock-data';
 import { fmtPrice } from '@/lib/format-price';
+import { DEFAULT_QUERY, SESSION_CODE } from '@/constants/sift-mock-data';
+import { isFirebaseConfigured } from '@/lib/firebase';
+import { useAuth } from '@/hooks/use-auth';
+import { useDemoSession } from '@/hooks/session/use-demo-session';
+import { useLiveSession } from '@/hooks/session/use-live-session';
+import type { NoteView } from '@/types/view';
 
 export type Screen = 'sources' | 'live' | 'confirm' | 'results' | 'dashboard' | 'saved';
 
-interface ArchiveEntry extends MockNote {
+interface ArchiveEntry extends NoteView {
   stamp: string;
 }
 
+/**
+ * UI-only state. Everything about sources, listings, saved searches and notes
+ * comes from the session, so this holds nothing the backend also owns.
+ */
 interface FlowState {
   screen: Screen;
   input: string;
   query: string;
-  running: boolean;
-  complete: boolean;
-  tiles: MockTile[];
-  sources: MockSource[];
-  notes: MockNote[];
-  archive: ArchiveEntry[];
   showArchive: boolean;
-  saved: MockSavedItem[];
   chosen: number;
-  confirmed: boolean;
   selected: number | null;
-  recents: MockRecent[];
+  dismissed: ArchiveEntry[];
 }
 
 const INITIAL_STATE: FlowState = {
   screen: 'sources',
   input: '',
   query: DEFAULT_QUERY,
-  running: false,
-  complete: false,
-  tiles: [],
-  sources: SOURCES.map((s) => ({ ...s })),
-  notes: INITIAL_NOTES.map((n) => ({ ...n })),
-  archive: [],
   showArchive: false,
-  saved: INITIAL_SAVED.map((s) => ({ ...s })),
-  chosen: 1,
-  confirmed: false,
+  chosen: 0,
   selected: null,
-  recents: INITIAL_RECENTS.map((r) => ({ ...r })),
+  dismissed: [],
 };
+
+/** Trims a pasted URL down to the bare domain the backend expects. */
+function toDomain(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/[/?#].*$/, '');
+}
 
 export function useSiftFlow() {
   const [state, setState] = useState<FlowState>(INITIAL_STATE);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  useEffect(
-    () => () => {
-      timers.current.forEach(clearTimeout);
-    },
-    [],
-  );
+  const auth = useAuth();
+  const live = useLiveSession(auth.user?.uid ?? null);
+  const demo = useDemoSession();
 
-  const at = useCallback((ms: number, fn: () => void) => {
-    timers.current.push(setTimeout(fn, ms));
-  }, []);
-
-  const setSourceStatus = useCallback((domain: string, status: MockSource['status']) => {
-    setState((s) => ({ ...s, sources: s.sources.map((x) => (x.domain === domain ? { ...x, status } : x)) }));
-  }, []);
-
-  const addTile = useCallback((index: number) => {
-    const tile = TILES[index];
-    if (!tile) return;
-    setState((s) => ({ ...s, tiles: [...s.tiles, tile] }));
-  }, []);
+  // Live only once there is a project and a signed-in uid to own the documents.
+  const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
 
   const setScreen = useCallback((screen: Screen) => setState((s) => ({ ...s, screen })), []);
-
-  const runSearch = useCallback(() => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    const t = STREAM_SPEED_MS;
-
-    setState((s) => ({
-      ...s,
-      recents: [{ name: s.query, meta: 'RUNNING NOW' }, ...s.recents.filter((r) => r.name !== s.query)].slice(0, 4),
-      screen: 'live',
-      running: true,
-      complete: false,
-      tiles: [],
-      confirmed: false,
-      sources: s.sources.map((x) => ({ ...x, status: x.status === 'BLOCKED' ? x.status : 'PENDING' })),
-    }));
-
-    const targets = state.sources.filter((x) => x.status !== 'BLOCKED');
-    targets.forEach((src, i) =>
-      at(t * (i + 1), () => {
-        setSourceStatus(src.domain, 'RESOLVED');
-        addTile(i);
-      }),
-    );
-    at(t * (targets.length + 1), () =>
-      setState((s) => ({
-        ...s,
-        running: false,
-        complete: true,
-        notes: s.tiles.some((x) => x.issue)
-          ? [
-              ...s.notes,
-              {
-                id: 'review-' + Date.now(),
-                kind: 'prompt',
-                heading: 'CONFIRM_MATCH',
-                body: 'evetech.co.za matched below 60%. Select that tile to resolve it.',
-              },
-            ]
-          : s.notes,
-      })),
-    );
-  }, [at, addTile, setSourceStatus, state.sources]);
-
-  const resetSources = useCallback(() => {
-    setState((s) => ({ ...s, sources: SOURCES.map((x) => ({ ...x })), input: '' }));
-  }, []);
-
-  const backToSourcesFromLive = useCallback(() => {
-    setState((s) => ({ ...s, screen: 'sources', running: false, complete: false, tiles: [], selected: null }));
-  }, []);
+  const setQuery = useCallback((query: string) => setState((s) => ({ ...s, query })), []);
+  const setInput = useCallback((input: string) => setState((s) => ({ ...s, input })), []);
+  const chooseRecent = useCallback((name: string) => setState((s) => ({ ...s, query: name })), []);
+  const toggleArchive = useCallback(() => setState((s) => ({ ...s, showArchive: !s.showArchive })), []);
+  const selectTile = useCallback((index: number) => setState((s) => ({ ...s, selected: index })), []);
+  const closeListing = useCallback(() => setState((s) => ({ ...s, selected: null })), []);
+  const chooseCandidate = useCallback((index: number) => setState((s) => ({ ...s, chosen: index })), []);
+  const openSaved = useCallback(() => setScreen('saved'), [setScreen]);
 
   const addSourceFromInput = useCallback(() => {
     setState((s) => {
-      const v = s.input.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-      if (!v) return s;
-      return { ...s, sources: [...s.sources, { domain: v, status: 'PENDING' }], input: '' };
+      const domain = toDomain(s.input);
+      if (domain) session.addSource(domain);
+      return { ...s, input: '' };
     });
-  }, []);
+  }, [session]);
 
-  const removeSource = useCallback((domain: string) => {
-    setState((s) => ({
-      ...s,
-      sources: s.sources.filter((y) => y.domain !== domain),
-      notes: s.notes.filter((n) => n.domain !== domain),
-      archive: [
-        ...s.notes.filter((n) => n.domain === domain).map((n) => ({ ...n, stamp: 'SOURCE REMOVED' })),
-        ...s.archive,
-      ],
-    }));
-  }, []);
+  const removeSource = useCallback(
+    (domain: string) => {
+      session.removeSource(domain);
+    },
+    [session],
+  );
 
-  const dismissNote = useCallback((id: string) => {
-    setState((s) => {
-      const note = s.notes.find((n) => n.id === id);
-      if (!note) return s;
-      return {
-        ...s,
-        notes: s.notes.filter((n) => n.id !== id),
-        archive: [{ ...note, stamp: 'SESSION ' + SESSION_CODE }, ...s.archive],
-      };
-    });
-  }, []);
+  const resetSources = useCallback(() => {
+    session.resetSources();
+    setState((s) => ({ ...s, input: '', dismissed: [] }));
+  }, [session]);
 
-  const toggleArchive = useCallback(() => setState((s) => ({ ...s, showArchive: !s.showArchive })), []);
-  const selectTile = useCallback((i: number) => setState((s) => ({ ...s, selected: i })), []);
-  const closeListing = useCallback(() => setState((s) => ({ ...s, selected: null })), []);
-  const chooseCandidate = useCallback((i: number) => setState((s) => ({ ...s, chosen: i })), []);
-  const chooseRecent = useCallback((name: string) => setState((s) => ({ ...s, query: name })), []);
-  const setQuery = useCallback((query: string) => setState((s) => ({ ...s, query })), []);
-  const setInput = useCallback((input: string) => setState((s) => ({ ...s, input })), []);
-  const openSaved = useCallback(() => setScreen('saved'), [setScreen]);
+  const runSearch = useCallback(() => {
+    session.runSearch(state.query);
+    setState((s) => ({ ...s, screen: 'live', selected: null, chosen: 0 }));
+  }, [session, state.query]);
+
+  const backToSourcesFromLive = useCallback(() => {
+    session.cancelSearch();
+    setState((s) => ({ ...s, screen: 'sources', selected: null }));
+  }, [session]);
+
+  /** Notes the user has dismissed move to the archive rather than disappearing. */
+  const dismissNote = useCallback(
+    (id: string) => {
+      const note = session.notes.find((n) => n.id === id);
+      if (!note) return;
+      setState((s) => ({ ...s, dismissed: [{ ...note, stamp: `SESSION ${SESSION_CODE}` }, ...s.dismissed] }));
+    },
+    [session.notes],
+  );
+
+  const openConfirm = useCallback(
+    (domain: string) => {
+      session.beginConfirm(domain);
+      setState((s) => ({ ...s, screen: 'confirm', chosen: 0 }));
+    },
+    [session],
+  );
 
   const confirmMatches = useCallback(() => {
-    setState((s) => {
-      const c = CANDIDATES[s.chosen];
-      return {
-        ...s,
-        confirmed: true,
-        screen: 'live',
-        selected: null,
-        notes: s.notes.filter((n) => n.kind !== 'prompt'),
-        archive: [
-          ...s.notes.filter((n) => n.kind === 'prompt').map((n) => ({ ...n, stamp: 'RESOLVED' })),
-          ...s.archive,
-        ],
-        tiles: s.tiles.map((x) =>
-          x.retailer === 'Evetech' ? { ...x, price: c.price, value: c.value, confidence: 4, count: undefined, issue: false } : x,
-        ),
-      };
-    });
-  }, []);
+    session.confirmCandidate(state.chosen);
+    setState((s) => ({ ...s, screen: 'live', selected: null }));
+  }, [session, state.chosen]);
 
   const saveCurrentSearch = useCallback(() => {
-    setState((s) => {
-      if (s.saved.some((x) => x.name === s.query)) return s;
-      const lowest = [...s.tiles].sort((a, b) => a.value - b.value)[0];
-      if (!lowest) return s;
-      return {
-        ...s,
-        saved: [
-          ...s.saved,
-          {
-            id: 'saved-' + Date.now(),
-            name: s.query,
-            value: lowest.value,
-            sources: s.tiles.length,
-            dropTo: Math.round(lowest.value * 0.96),
-            checked: false,
-            justDropped: false,
-            lastChecked: null,
-          },
-        ],
-      };
-    });
-  }, []);
+    session.saveCurrentSearch(state.query);
+  }, [session, state.query]);
 
-  const checkItem = useCallback((id: string) => {
-    setState((s) => {
-      const item = s.saved.find((x) => x.id === id);
-      if (!item || item.checked) return s;
-      const drop = !!item.dropTo && item.dropTo < item.value;
-      const oldValue = item.value;
-      const nextSaved = s.saved.map((x) =>
-        x.id === id
-          ? {
-              ...x,
-              checked: true,
-              justDropped: drop,
-              value: drop ? item.dropTo! : x.value,
-              wasValue: drop ? oldValue : undefined,
-              lastChecked: '00:00 AGO',
-            }
-          : x,
-      );
-      if (!drop) return { ...s, saved: nextSaved };
-      const pct = Math.round(((oldValue - item.dropTo!) / oldValue) * 1000) / 10;
-      return {
-        ...s,
-        saved: nextSaved,
-        notes: [
-          ...s.notes,
-          {
-            id: 'drop-' + id,
-            kind: 'drop',
-            domain: id,
-            heading: 'PRICE_DROP',
-            body: `${item.name} fell to ${fmtPrice(item.dropTo!)} from ${fmtPrice(oldValue)}, ${pct}% down.`,
-          },
-        ],
-      };
-    });
-  }, []);
-
-  const checkAll = useCallback(() => {
-    state.saved.filter((x) => !x.checked).forEach((x) => checkItem(x.id));
-  }, [state.saved, checkItem]);
+  const checkItem = useCallback((id: string) => session.checkSaved(id), [session]);
+  const checkAll = useCallback(() => session.checkAllSaved(), [session]);
 
   const derived = useMemo(() => {
-    const { screen, tiles, sources, running, complete, selected, saved, notes, archive, chosen, recents } = state;
+    const { screen, selected, chosen, dismissed, showArchive } = state;
+    const { tiles, sources, saved, recents, candidates, running, complete, history } = session;
+
+    const dismissedIds = new Set(dismissed.map((note) => note.id));
+    const notes = session.notes.filter((note) => !dismissedIds.has(note.id));
 
     const resolved = tiles.length;
     const sorted = [...tiles].sort((a, b) => a.value - b.value);
+    const cheapest = sorted[0];
+    const dearest = sorted[sorted.length - 1];
     const spread =
-      sorted.length > 1 ? Math.round(((sorted[sorted.length - 1].value - sorted[0].value) / sorted[0].value) * 1000) / 10 : 0;
-    const blockedSources = sources.filter((x) => x.status === 'BLOCKED').length;
-    const openIssues = tiles.filter((x) => x.issue).length;
-    const sel = selected !== null ? (tiles[selected] ?? null) : null;
-    const selectedIssue = !!(sel && sel.issue);
-    const droppedCount = saved.filter((x) => x.justDropped).length;
+      sorted.length > 1 ? Math.round(((dearest.value - cheapest.value) / cheapest.value) * 1000) / 10 : 0;
+
+    const blockedSources = sources.filter((source) => source.status === 'BLOCKED').length;
+    const openIssues = tiles.filter((tile) => tile.issue).length;
+    const selectedTile = selected !== null ? (tiles[selected] ?? null) : null;
+    const selectedIssue = !!selectedTile?.issue;
+    const droppedCount = saved.filter((item) => item.justDropped).length;
 
     const railName: Record<Screen, string> = {
       sources: 'ADD SOURCES',
@@ -289,29 +159,50 @@ export function useSiftFlow() {
     };
 
     const statusLine: Record<Screen, string> = {
-      sources: blockedSources > 0 ? `${blockedSources} BLOCKED · REMOVE TO CONTINUE` : `${sources.length} SOURCES · IDLE`,
+      sources:
+        blockedSources > 0
+          ? `${blockedSources} BLOCKED · REMOVE TO CONTINUE`
+          : `${sources.length} SOURCES · ${session.mode === 'demo' ? 'DEMO' : 'IDLE'}`,
       live: running
         ? `${resolved}/${sources.length} RESOLVED · LIVE`
         : openIssues > 0
           ? `${openIssues} TO REVIEW · SELECT TO RESOLVE`
           : `${resolved} PRICES · COMPLETE`,
-      confirm: '2 CANDIDATES · IDLE',
+      confirm: `${candidates.length} CANDIDATES · IDLE`,
       results: `${resolved} PRICES · COMPLETE`,
       dashboard: `${resolved} PRICES · SPREAD ${spread}%`,
       saved: droppedCount > 0 ? `${droppedCount} DROPPED · REVIEW` : `${saved.length} WATCHED · IDLE`,
     };
 
-    const nav: Record<Screen, { primaryLabel: string; primaryAction: () => void; primaryDisabled?: boolean; secondaryLabel: string; secondaryAction: () => void }> = {
-      sources: { primaryLabel: 'RUN SEARCH', primaryAction: runSearch, primaryDisabled: blockedSources > 0, secondaryLabel: 'RESET', secondaryAction: resetSources },
+    const nav: Record<
+      Screen,
+      { primaryLabel: string; primaryAction: () => void; primaryDisabled?: boolean; secondaryLabel: string; secondaryAction: () => void }
+    > = {
+      sources: {
+        primaryLabel: 'RUN SEARCH',
+        primaryAction: runSearch,
+        primaryDisabled: blockedSources > 0 || sources.length === 0 || state.query.trim().length === 0,
+        secondaryLabel: 'RESET',
+        secondaryAction: resetSources,
+      },
       live: {
         primaryLabel: !complete ? 'SEARCH RUNNING' : selectedIssue ? 'RESOLVE ISSUE' : 'CONFIRM MATCHES',
-        primaryAction: () => setScreen(selectedIssue ? 'confirm' : 'results'),
+        primaryAction: () => {
+          if (selectedIssue && selectedTile) openConfirm(selectedTile.domain);
+          else setScreen('results');
+        },
         primaryDisabled: !complete || (!selectedIssue && openIssues > 0),
         secondaryLabel: 'BACK',
         secondaryAction: backToSourcesFromLive,
       },
-      confirm: { primaryLabel: 'CONFIRM MATCH', primaryAction: confirmMatches, secondaryLabel: 'BACK', secondaryAction: () => setScreen('live') },
-      results: { primaryLabel: 'VIEW SPREAD', primaryAction: () => setScreen('dashboard'), secondaryLabel: 'BACK', secondaryAction: () => setScreen('confirm') },
+      confirm: {
+        primaryLabel: 'CONFIRM MATCH',
+        primaryAction: confirmMatches,
+        primaryDisabled: candidates.length === 0,
+        secondaryLabel: 'BACK',
+        secondaryAction: () => setScreen('live'),
+      },
+      results: { primaryLabel: 'VIEW SPREAD', primaryAction: () => setScreen('dashboard'), secondaryLabel: 'BACK', secondaryAction: () => setScreen('live') },
       dashboard: {
         primaryLabel: 'SAVE SEARCH',
         primaryAction: () => {
@@ -321,44 +212,128 @@ export function useSiftFlow() {
         secondaryLabel: 'BACK',
         secondaryAction: () => setScreen('results'),
       },
-      saved: { primaryLabel: 'CHECK ALL', primaryAction: checkAll, primaryDisabled: saved.every((x) => x.checked), secondaryLabel: 'BACK', secondaryAction: () => setScreen('sources') },
+      saved: {
+        primaryLabel: 'CHECK ALL',
+        primaryAction: checkAll,
+        primaryDisabled: saved.length === 0 || saved.every((item) => item.checked),
+        secondaryLabel: 'BACK',
+        secondaryAction: () => setScreen('sources'),
+      },
     };
 
-    const hmin = Math.min(...HISTORY);
-    const hmax = Math.max(...HISTORY);
-    const historyBars = HISTORY.map((v, i) => ({
-      heightPx: 14 + ((v - hmin) / (hmax - hmin)) * 46,
-      isToday: i === HISTORY.length - 1,
+    // A flat history draws no bars, so a single observation sits mid-height.
+    const historyMin = Math.min(...history);
+    const historyRange = Math.max(...history) - historyMin;
+    const historyBars = history.map((value, index) => ({
+      heightPx: 14 + (historyRange > 0 ? ((value - historyMin) / historyRange) * 46 : 23),
+      isToday: index === history.length - 1,
     }));
 
-    const ladder = sorted.map((t) => ({
-      label: t.retailer.toUpperCase(),
-      price: t.price,
-      widthPct: 10 + ((t.value - sorted[0].value) / ((sorted[sorted.length - 1].value - sorted[0].value) || 1)) * 90,
-      color: t.value === sorted[0].value ? SiftColors.mint : t.value === sorted[sorted.length - 1].value ? SiftColors.ember : SiftColors.boneDim,
+    const priceRange = sorted.length > 1 ? dearest.value - cheapest.value : 0;
+    const ladder = sorted.map((tile) => ({
+      label: tile.retailer.toUpperCase(),
+      price: tile.price,
+      widthPct: 10 + (priceRange > 0 ? ((tile.value - cheapest.value) / priceRange) * 90 : 90),
+      color:
+        tile.value === cheapest.value
+          ? SiftColors.mint
+          : tile.value === dearest.value
+            ? SiftColors.ember
+            : SiftColors.boneDim,
     }));
 
-    const listing = sel
+    const listing = selectedTile
       ? {
-          title: sel.title,
-          url: sel.url,
-          method: sel.method,
-          stock: sel.stock,
+          title: selectedTile.title,
+          url: selectedTile.url,
+          method: selectedTile.method,
+          stock: selectedTile.stock,
           priceLine:
-            sel.price + (sel.lowest ? `, LOWEST OF ${tiles.length}` : `, ${Math.round(((sel.value - sorted[0].value) / sorted[0].value) * 100)}% ABOVE LOWEST`),
-          confidenceLine: `${sel.confidence}/4`,
-          checked: `00:04 AGO · SESSION ${SESSION_CODE}`,
-          issue: !!sel.issue,
+            selectedTile.price +
+            (selectedTile.lowest
+              ? `, LOWEST OF ${tiles.length}`
+              : `, ${Math.round(((selectedTile.value - cheapest.value) / cheapest.value) * 100)}% ABOVE LOWEST`),
+          confidenceLine: `${selectedTile.confidence}/4`,
+          checked: `SESSION ${SESSION_CODE}`,
+          issue: !!selectedTile.issue,
         }
       : null;
 
+    const selectedCandidate = candidates[chosen];
+
+    // The Learn Something side of the app: what the lowest price actually means,
+    // stated in the numbers this search produced rather than a fixed line.
+    const historyLow = history.length > 0 ? Math.min(...history) : null;
+    const aboveRecordLow =
+      cheapest && historyLow !== null && historyLow > 0
+        ? Math.round(((cheapest.value - historyLow) / historyLow) * 1000) / 10
+        : null;
+
+    const resultInsight = !cheapest
+      ? 'No prices came back yet. Add a source or widen the query.'
+      : [
+          `${cheapest.price} is the lowest of your ${tiles.length} ${tiles.length === 1 ? 'source' : 'sources'}`,
+          sorted.length > 1 ? `, ${spread}% below the dearest` : '',
+          aboveRecordLow === null
+            ? '. Watch it to start recording what it usually costs.'
+            : aboveRecordLow <= 0
+              ? `. That is the lowest figure recorded across ${history.length} checks.`
+              : `, and ${aboveRecordLow}% above the lowest of the ${history.length} checks recorded so far.`,
+        ].join('');
+
+    const confirmDomain = selectedTile?.domain ?? tiles.find((tile) => tile.issue)?.domain ?? 'this source';
+    const confirmSuffix = `${candidates.length}_LOW_CONFIDENCE`;
+    const confirmInsight =
+      candidates.length === 0
+        ? 'Nothing to confirm. Every source matched above the threshold.'
+        : `${confirmDomain} returned ${candidates.length} listings for this query and the best scored ${Math.round((candidates[0]?.confidence ?? 0) * 100)}%, under the 60% threshold. The one you pick is the one compared, and it is counted against this source for next time.`;
+
+    const median =
+      sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) / 2)].value : null;
+    const belowMedian =
+      cheapest && median && median > 0 ? Math.round(((median - cheapest.value) / median) * 100) : 0;
+
+    const liveInsight = !cheapest
+      ? 'Waiting on the first price.'
+      : sorted.length > 1
+        ? `${cheapest.price} is the lowest of ${tiles.length} sources, ${belowMedian}% below their median of ${fmtPrice(median as number)}.`
+        : `${cheapest.price} from ${cheapest.retailer}. Add another source to see how that compares.`;
+
+    const historyTrend =
+      history.length > 1 ? (history[history.length - 1] < history[history.length - 2] ? 'FALLING' : 'RISING') : 'FLAT';
+    const historySummary =
+      history.length === 0
+        ? cheapest
+          ? `NO HISTORY YET · TODAY ${cheapest.price}`
+          : 'NO HISTORY YET'
+        : `LOW ${fmtPrice(Math.min(...history))} · MEDIAN ${fmtPrice([...history].sort((a, b) => a - b)[Math.floor((history.length - 1) / 2)])} · TODAY ${fmtPrice(history[history.length - 1])}, ${historyTrend}`;
+
+    const heuristicCount = tiles.filter((tile) => tile.tier === 4).length;
+    const resultMetadata = [
+      `${blockedSources} ${blockedSources === 1 ? 'SOURCE' : 'SOURCES'} BLOCKED`,
+      `${heuristicCount} ${heuristicCount === 1 ? 'PRICE' : 'PRICES'} FROM HEURISTIC PARSING`,
+      `${resolved} OF ${sources.length} SOURCES RESOLVED`,
+    ];
+
     return {
+      mode: session.mode,
+      error: session.error,
+      authPhase: auth.phase,
+      isGuest: auth.isGuest,
+      sources,
+      tiles,
+      saved,
+      recents,
+      candidates,
+      notes,
+      running,
+      complete,
       resolved,
       sorted,
       spread,
       blockedSources,
       openIssues,
-      selectedTile: sel,
+      selectedTile,
       railName: railName[screen],
       railConnection: (running ? 'LIVE' : 'IDLE') as 'LIVE' | 'IDLE',
       statusLine: statusLine[screen],
@@ -366,21 +341,46 @@ export function useSiftFlow() {
       historyBars,
       ladder,
       listing,
-      showListing: sel !== null && !running,
-      hasAlerts: notes.length + archive.length > 0,
-      alertCount: notes.length + archive.length,
-      archiveCount: archive.length,
-      archiveEmpty: archive.length === 0,
+      showListing: selectedTile !== null && !running,
+      hasAlerts: notes.length + dismissed.length > 0,
+      alertCount: notes.length + dismissed.length,
+      archiveCount: dismissed.length,
+      archiveEmpty: dismissed.length === 0,
       hasDrops: droppedCount > 0,
+      showArchive,
       sourceCountLabel: String(sources.length).padStart(2, '0'),
       recentCount: String(recents.length).padStart(2, '0'),
-      candidateSelectedLabel: `${CANDIDATES[chosen].price} · ${Math.round(CANDIDATES[chosen].confidence * 100)}%`,
-      spreadPoints: sorted.map((t) => ({ value: t.value, priceLabel: t.price, label: t.retailer.toUpperCase() })),
-      spreadLabel: `SPREAD ${SESSION_CODE} · ${spread}% · N=${tiles.length} · TIERS ${tiles.map((t) => 'T' + t.tier).join(' ')}`,
+      candidateSelectedLabel: selectedCandidate
+        ? `${selectedCandidate.price} · ${Math.round(selectedCandidate.confidence * 100)}%`
+        : 'NONE',
+      liveInsight,
+      historySummary,
+      confirmSuffix,
+      confirmInsight,
+      resultInsight,
+      resultMetadata,
+      spreadPoints: sorted.map((tile) => ({ value: tile.value, priceLabel: tile.price, label: tile.retailer.toUpperCase() })),
+      spreadLabel: `SPREAD ${SESSION_CODE} · ${spread}% · N=${tiles.length} · TIERS ${tiles.map((tile) => `T${tile.tier}`).join(' ')}`,
       resultSuffix: `${SESSION_CODE}_${tiles.length}_PRICES`,
-      archiveLabeled: archive.map((n) => ({ ...n, label: (n.kind === 'prompt' ? '>' : n.kind === 'drop' ? '//' : '!') + n.heading })),
+      archiveLabeled: dismissed.map((note) => ({
+        ...note,
+        label: (note.kind === 'prompt' ? '>' : note.kind === 'drop' ? '//' : '!') + note.heading,
+      })),
     };
-  }, [state, runSearch, resetSources, backToSourcesFromLive, confirmMatches, saveCurrentSearch, checkAll, setScreen]);
+  }, [
+    state,
+    session,
+    auth.phase,
+    auth.isGuest,
+    runSearch,
+    resetSources,
+    backToSourcesFromLive,
+    confirmMatches,
+    openConfirm,
+    saveCurrentSearch,
+    checkAll,
+    setScreen,
+  ]);
 
   return {
     state,
@@ -396,6 +396,7 @@ export function useSiftFlow() {
       selectTile,
       closeListing,
       chooseCandidate,
+      openConfirm,
       confirmMatches,
       dismissNote,
       toggleArchive,
