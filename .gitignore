@@ -58,5 +58,5 @@ ui-debug.log
 .emulator-data/
 AGENTS.md
 /.claude
-.env.example
+!.env.example
 /.vscode
