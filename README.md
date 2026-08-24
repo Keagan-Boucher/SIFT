@@ -84,6 +84,7 @@ The project is built against three fixed inspiration cards, and every major deci
 - **Alert log.** Blocked sources, confirm prompts and price drops surface as dismissible banners and archive to a session log.
 - **Landscape and portrait layouts.** A vertical rail in landscape, a compact header bar in portrait, switched on `useWindowDimensions`.
 - **Extraction pipeline.** JSON-LD, Open Graph, microdata and heuristic HTML parsing, covered by unit tests against real and synthetic fixtures.
+- **Headless rendering fallback.** A client-rendered storefront is rendered in a real headless Chromium browser before the same parsers run against the result, reached only once the plain-fetch tiers have both failed.
 - **Full resolution cascade.** Registry lookup, generic search-form discovery, platform fingerprinting for nine ecommerce platforms, and a user-pasted search URL as the last resort. Everything discovered is written back to the shared registry.
 - **Match confidence scoring.** Query tokens containing digits are weighted double, since those separate a variant from its siblings, and accessory listings are penalised. Below 60% the user is asked to pick.
 - **Server-side pipeline.** A Firestore trigger resolves, fetches, extracts and scores every source, four at a time with one request per host, republishing per-source state as each one lands.
@@ -94,7 +95,6 @@ The project is built against three fixed inspiration cards, and every major deci
 ### Planned
 
 - Extraction tiers 1 and 2, official APIs and internal JSON endpoints (stubbed, per-retailer work)
-- Headless rendering for client-rendered sites
 - Push notifications on price drops
 - Selection weighting, where the candidate a user confirms informs future ranking
 - EAS Build and submission to the App Store and Play Store
@@ -159,8 +159,9 @@ That validation is what makes the write-back safe, and it is measurable: the fir
 |  2   | Undocumented internal JSON endpoint             | Future consideration |
 |  3   | Structured data: JSON-LD, Open Graph, microdata |     Implemented      |
 |  4   | Heuristic HTML parsing                          |     Implemented      |
+|  5   | Headless render, then tiers 3-4 against the result |   Implemented      |
 
-Tiers 3 and 4 are fully generic and need no per-retailer configuration, which is what keeps the any-site promise intact. Tiers 1 and 2 are per-retailer work that scales badly, so they are scoped out of the MVP and stubbed in place.
+Tiers 3-5 are fully generic and need no per-retailer configuration, which is what keeps the any-site promise intact. Tier 5 is the most expensive rung on the ladder, a real headless Chromium browser rather than a fetch, so it only runs once tiers 3 and 4 have both come back empty and the page looks client-rendered. Tiers 1 and 2 are per-retailer work that scales badly, so they are scoped out of the MVP and stubbed in place.
 
 > [!IMPORTANT]
 > **Where the scraper runs decides whether it works.** This is the single biggest constraint on the project, and it is not a code problem.
@@ -179,8 +180,8 @@ Tiers 3 and 4 are fully generic and need no per-retailer configuration, which is
 >
 > | Limitation | What happens | The fix, and where it sits |
 > | --- | --- | --- |
-> | Client-rendered storefronts | The page is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Headless rendering, a Future Consideration |
-> | Datacentre IP blocking | `403` from Cloudflare, or a TCP reset, for a request that succeeds from a home connection. | Run the pipeline locally, as above |
+> | Client-rendered storefronts | The page is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Tier 5 headless rendering, implemented. Costs a browser rather than a fetch, so it only runs as the last resort |
+> | Datacentre IP blocking | `403` from Cloudflare, or a TCP reset, for a request that succeeds from a home connection. | Run the pipeline locally, as above. Applies to the headless render too |
 > | robots.txt on search paths | Many storefronts allow `/` and disallow `/search`. That is a refusal, and SIFT honours it. | Nothing to fix. The source is reported `BLOCKED` |
 > | Niche catalogues | The shop simply does not stock the product, and its search returns unrelated items. | Nothing to fix. Reported as such rather than as a failure |
 >
@@ -213,6 +214,7 @@ Two details matter more than they look:
 | Database        | Cloud Firestore                                | NoSQL with real-time listeners, which the Real-Time Data card demands       |
 | Backend runtime | Cloud Functions v2 on Node 20                  | Server-side scraping on the Blaze plan with a budget cap                    |
 | HTML parsing    | Cheerio                                        | Fast server-side DOM traversal for tiers 3 and 4                            |
+| Headless rendering | playwright-core, @sparticuz/chromium        | Tier 5: renders client-rendered pages before tiers 3-4 parse the result     |
 | Politeness      | robots-parser, p-limit                         | robots.txt compliance and concurrency limiting                              |
 | Admin writes    | firebase-admin                                 | Listings and templates are function-written only                            |
 | Local dev       | Firebase Emulator Suite in Docker Compose      | Reproducible backend with no cloud spend                                    |
@@ -613,6 +615,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Flow state machine and Zustand store     |       Complete       |
 | Resolution methods A to D                |   Complete, tested   |
 | Extraction tiers 3 and 4                 |   Complete, tested   |
+| Extraction tier 5, headless rendering    |   Complete, tested   |
 | Match confidence and confirm step        |   Complete, tested   |
 | Politeness: robots.txt and rate limiting |   Complete, tested   |
 | Search pipeline and real-time streaming  |       Complete       |
@@ -624,7 +627,6 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Docker emulator environment              |       Complete       |
 | EAS build profiles                       |       Complete       |
 | Extraction tiers 1 and 2                 | Future consideration |
-| Headless rendering                       | Future consideration |
 | Push notifications on price drops        |       Planned        |
 | Store submission                         |       Planned        |
 
