@@ -145,17 +145,29 @@ export async function scrapeSource(
       fetchedAny = true;
       if (!readablePattern && resolution.searchUrlPattern) readablePattern = resolution.searchUrlPattern;
 
+      // A registry hit, a discovered form or a platform fingerprint is enough
+      // trust that this page is genuinely the site's search, not one of five
+      // generic /search shapes being guessed blind. Once one of those responds
+      // with real content, there is nothing to gain from burning the rest of
+      // the guesses before falling back to relaxation on the page we already
+      // know works.
+      const isTrustedRoute = resolution.confidence >= 0.4;
+
       const candidates = extractCandidates(html, resolution.listingUrl, query);
       if (candidates.length === 0) {
         // Consulted only now: a theme that ships hidden empty-state wording
         // would otherwise mask a page that does have products on it.
-        if (looksLikeNoResults(html)) emptyResultSet = true;
+        if (looksLikeNoResults(html)) {
+          emptyResultSet = true;
+          if (isTrustedRoute) break;
+        }
         continue;
       }
 
       if (candidates[0].matchConfidence < MIN_ACCEPTABLE_MATCH) {
         matchedNothing = true;
         if (!pageMentionsQuery(html, query)) productAbsentFromPage = true;
+        if (isTrustedRoute) break;
         continue;
       }
 
