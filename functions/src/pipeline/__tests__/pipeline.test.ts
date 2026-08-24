@@ -23,6 +23,11 @@ interface Route {
   robots: string;
   home: string;
   results: string;
+  /**
+   * Overrides `results` based on the query string, for tests where the strict
+   * and relaxed searches have to return genuinely different pages.
+   */
+  resultsFor?: (query: string) => string | null;
 }
 
 let server: Server;
@@ -62,8 +67,21 @@ before(async () => {
     }
     // Both the form-derived path and the conventional /search path serve results.
     if (path === "/catalogue/results" || path === "/search") {
+      const params = new URL(request.url ?? "/", `http://${host}`).searchParams;
+      // Covers every synthetic param name the resolution methods under test can
+      // produce: the form-discovery fixture's "keywords", and commonPaths.ts's
+      // "q"/"query"/"keyword"/"s". Missing one here silently reads as an empty
+      // query, which vacuously matches any resultsFor predicate.
+      const query =
+        params.get("keywords") ??
+        params.get("q") ??
+        params.get("query") ??
+        params.get("keyword") ??
+        params.get("s") ??
+        "";
+      const body = site.resultsFor?.(query) ?? site.results;
       response.writeHead(200, { "content-type": "text/html" });
-      response.end(site.results);
+      response.end(body);
       return;
     }
     response.writeHead(404).end();
@@ -208,4 +226,46 @@ test("scrapeSource obeys the robots.txt of the host it is redirected to", async 
   assert.equal(outcome.status, "BLOCKED");
   // The apex robots.txt was read and allowed; nothing beyond it was scraped.
   assert.ok(!requestedPaths.some((p) => p.startsWith("/catalogue/results")), requestedPaths.join(","));
+});
+
+test("scrapeSource retries with a relaxed query when the site's literal AND search finds nothing", async () => {
+  // Real case: dragontown.co.za lists "Teenage Mutant Ninja Turtles -
+  // Prerelease Pack". Its WooCommerce search is a literal AND across every
+  // word, so "Mtg Teenage Mutant turtles bundle" returns nothing at all.
+  // Dropping the least distinctive words finds the product.
+  const noResultsPage = `<!doctype html><html><body><p>No products were found matching your selection.</p></body></html>`;
+  // Card markup shaped like the rest of the fixtures: a product link plus a
+  // nearby price. The title is real TMNT stock, so it scores against the
+  // user's original query rather than the relaxed one used to find it.
+  const productTitle = "Teenage Mutant Ninja Turtles - Prerelease Pack";
+  const turtlesPage = `<!doctype html><html><body><ul class="products">
+      <li class="product">
+        <a href="/product/teenage-mutant-ninja-turtles-prerelease-pack/">${productTitle}</a>
+        <span class="price">R995.00</span>
+      </li>
+    </ul></body></html>`;
+
+  // WooCommerce's own search is a literal AND across every word of the query,
+  // which is exactly the behaviour that sends "mtg ... bundle" to nothing while
+  // the relaxed "teenage mutant turtles" finds the product.
+  serve({
+    resultsFor: (query) => {
+      const words = decodeURIComponent(query.replace(/\+/g, " ")).toLowerCase().split(/\s+/).filter(Boolean);
+      const titleWords = productTitle.toLowerCase();
+      return words.every((word) => titleWords.includes(word)) ? turtlesPage : noResultsPage;
+    },
+  });
+
+  const outcome = await scrapeSource("Mtg Teenage Mutant turtles bundle", origin());
+
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  // The relaxed retry landed on the same route, just with fewer words.
+  assert.match(outcome.listingUrl, /keywords=teenage/);
+  assert.ok(outcome.candidates.length > 0);
+
+  // Both requests went through the one search route that actually works, not a
+  // different candidate URL entirely.
+  const searchRequests = requestedPaths.filter((p) => p.startsWith("/catalogue/results"));
+  assert.equal(searchRequests.length, 2, requestedPaths.join(","));
 });

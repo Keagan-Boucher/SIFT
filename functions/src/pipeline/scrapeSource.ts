@@ -185,8 +185,14 @@ export async function scrapeSource(
         const candidates = extractCandidates(retry.html, url, query);
         if (candidates.length === 0 || candidates[0].matchConfidence < MIN_ACCEPTABLE_MATCH) continue;
 
+        // Same write-back as the strict-query success path above. Missing this
+        // meant a relaxed match never taught the registry anything: the next
+        // search on the same domain would silently redo the same relaxation
+        // instead of resolving straight from method A.
+        const acceptedMethod = lastMethod ?? "platform-pattern";
+        await acceptResolution(domain, { method: acceptedMethod, listingUrl: url, confidence: 0.5, searchUrlPattern: readablePattern });
         await recordOutcome(domain, true);
-        return { ok: true, method: lastMethod ?? "platform-pattern", listingUrl: url, candidates };
+        return { ok: true, method: acceptedMethod, listingUrl: url, candidates };
       }
     }
 

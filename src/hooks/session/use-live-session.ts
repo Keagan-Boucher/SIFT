@@ -167,13 +167,23 @@ export function useLiveSession(userId: string | null): SiftSession {
     setStagedSources((sources) => sources.filter((source) => source.domain !== domain));
   }, []);
 
-  /** Dropping the search id also drops everything that hung off it. */
+  /**
+   * Dropping the search id also drops everything that hung off it, including
+   * the search document itself. Before it goes, whatever the pipeline actually
+   * found is folded into stagedSources, so leaving the live screen does not
+   * revert a source that resolved back to PENDING on the sources screen.
+   */
   const clearSearch = useCallback(() => {
+    setStagedSources((current) => {
+      if (!search) return current;
+      const live = new Map(search.sources.map((state) => [state.domain, toSourceView(state)]));
+      return current.map((staged) => live.get(staged.domain) ?? staged);
+    });
     setSearchId(null);
     setSearch(null);
     setListings([]);
     setConfirmDomain(null);
-  }, []);
+  }, [search]);
 
   const resetSources = useCallback(() => {
     setStagedSources(NO_SOURCES);
