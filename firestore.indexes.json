@@ -7,6 +7,30 @@
         { "fieldPath": "searchId", "order": "ASCENDING" },
         { "fieldPath": "price", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "searches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "savedSearches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pricePoints",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "savedSearchId", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

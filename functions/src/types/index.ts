@@ -30,3 +30,20 @@ export interface ScoredCandidate extends ExtractionResult {
   url: string;
   matchConfidence: number;
 }
+
+/**
+ * Per-source progress inside a search. Mirrors the SourceStatus the UI renders:
+ * PENDING while queued, RESOLVED once a listing landed, BLOCKED when robots.txt
+ * refused or nothing could be extracted.
+ */
+export type SourceStatus = "PENDING" | "RESOLVING" | "RESOLVED" | "BLOCKED" | "FAILED";
+
+export interface SourceState {
+  domain: string;
+  status: SourceStatus;
+  method?: ResolutionMethod;
+  /** Why the source failed, shown in the alert log. */
+  reason?: string;
+}
+
+export type SearchStatus = "pending" | "resolving" | "extracting" | "complete" | "failed";
