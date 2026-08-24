@@ -13,11 +13,11 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ flow, orientation }: DashboardViewProps) {
-  const { resultSuffix, spreadPoints, spreadLabel, ladder, historyBars, historySummary } = flow;
+  const { resultSuffix, spreadPoints, spreadLabel, ladder, historyBars, historySummary, historySuffix } = flow;
 
   const history = (
     <View style={styles.historySection}>
-      <CommandHeading sigil="//" text="LAST_30_DAYS" />
+      <CommandHeading sigil="//" text="PRICE_HISTORY" suffix={historySuffix} />
       <View style={styles.historyBars}>
         {historyBars.map((bar, i) => (
           <View

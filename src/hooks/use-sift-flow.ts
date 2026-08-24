@@ -112,7 +112,7 @@ export function useSiftFlow() {
   const openConfirm = useCallback(
     (domain: string) => {
       session.beginConfirm(domain);
-      setState((s) => ({ ...s, screen: 'confirm', chosen: 0 }));
+      setState((s) => ({ ...s, screen: 'confirm', chosen: 0, selected: null }));
     },
     [session],
   );
@@ -354,6 +354,7 @@ export function useSiftFlow() {
         ? `${selectedCandidate.price} · ${Math.round(selectedCandidate.confidence * 100)}%`
         : 'NONE',
       liveInsight,
+      historySuffix: `${String(history.length).padStart(2, '0')}_CHECKS`,
       historySummary,
       confirmSuffix,
       confirmInsight,
