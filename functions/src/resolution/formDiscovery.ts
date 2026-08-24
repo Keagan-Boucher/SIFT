@@ -1,7 +1,5 @@
 import * as cheerio from "cheerio";
-import type { ResolutionResult } from "../types";
-import { fetchPage, originFor } from "../net/fetchPage";
-import { QUERY_TOKEN, buildFromTemplate, validateTemplate } from "./template";
+import { QUERY_TOKEN } from "./template";
 
 /** Field names that carry the search term on the overwhelming majority of sites. */
 const QUERY_NAME_PATTERN = /^(q|s|k|query|search|keyword|keywords|term|searchterm|search_query|text)$/i;
@@ -69,24 +67,4 @@ export function discoverSearchTemplate(html: string, baseUrl: string): string | 
     if (template) return template;
   }
   return null;
-}
-
-/**
- * Resolution method B: fetch the domain's homepage, find its search form and
- * derive a search URL from it. Fully generic, no per-retailer configuration.
- */
-export async function resolveFromFormDiscovery(domain: string, query: string): Promise<ResolutionResult | null> {
-  const origin = originFor(domain);
-  const html = await fetchPage(origin);
-  if (!html) return null;
-
-  const template = discoverSearchTemplate(html, origin);
-  if (!template || !validateTemplate(template)) return null;
-
-  return {
-    method: "form-discovery",
-    listingUrl: buildFromTemplate(template, query),
-    confidence: 0.75,
-    searchUrlPattern: template,
-  };
 }

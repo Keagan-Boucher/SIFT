@@ -3,7 +3,13 @@ import type { AnyNode } from "domhandler";
 import type { ScoredCandidate } from "../types";
 import { scoreMatch } from "../matching/score";
 
-const PRICE_PATTERN = /(?:R|ZAR|\$|£|€)\s?\d[\d ,]*\.?\d{0,2}|\d[\d ,]*\.\d{2}\s?(?:USD|GBP|EUR|ZAR)\b/;
+/**
+ * Bounded on both sides. The lookbehind stops a model number being read as a
+ * price ("DDR4-3600" is not R4), and the lookahead stops shorthand in a
+ * navigation link ("Headsets Under R1k" is not R1). Both come from real pages.
+ */
+const PRICE_PATTERN =
+  /(?<![A-Za-z0-9])(?:R|ZAR|\$|£|€)\s?\d[\d ,]*(?:\.\d{1,2})?(?![\d.,]*[a-zA-Z])|(?<![A-Za-z0-9])\d[\d ,]*\.\d{2}\s?(?:USD|GBP|EUR|ZAR)\b/;
 const MAX_CARD_DEPTH = 6;
 const MAX_CARD_TEXT_LENGTH = 1200;
 const MAX_CANDIDATES = 12;
@@ -163,8 +169,14 @@ export function extractCandidates(html: string, baseUrl: string, query: string):
   const raw = candidatesFromJsonLd($, baseUrl);
   const candidates = raw.length > 0 ? raw : candidatesFromCards($, baseUrl);
 
-  return candidates
+  const scored = candidates
     .map((candidate) => ({ ...candidate, matchConfidence: scoreMatch(query, candidate.title).confidence }))
-    .sort((a, b) => b.matchConfidence - a.matchConfidence || a.price - b.price)
-    .slice(0, MAX_CANDIDATES);
+    .sort((a, b) => b.matchConfidence - a.matchConfidence || a.price - b.price);
+
+  // A results page carries navigation and unrelated products alongside the
+  // matches. Once anything scores, the noise is dropped so the confirm step
+  // offers real alternatives rather than whatever else was on the page.
+  const relevant = scored.filter((candidate) => candidate.matchConfidence > 0);
+
+  return (relevant.length > 0 ? relevant : scored).slice(0, MAX_CANDIDATES);
 }

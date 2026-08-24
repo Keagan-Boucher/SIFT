@@ -118,7 +118,8 @@ test("extractCandidates reads every product out of a JSON-LD ItemList and resolv
 
 test("extractCandidates falls back to card parsing and ranks the right variant first", () => {
   const candidates = extractCandidates(fixture("results-cards.html"), "https://kloof.co.za/search", "Samsung Galaxy S24 Ultra 256GB");
-  assert.equal(candidates.length, 4);
+  // The unrelated kettle on the same results page scores zero and is dropped.
+  assert.equal(candidates.length, 3);
   assert.equal(candidates[0].title, "Samsung Galaxy S24 Ultra 256GB Titanium Black");
   assert.equal(candidates[0].price, 2899);
   assert.equal(candidates[0].currency, "ZAR");
@@ -130,9 +131,29 @@ test("extractCandidates ranks the clear case below the phone it matches word for
   const candidates = extractCandidates(fixture("results-cards.html"), "https://kloof.co.za/search", "Samsung Galaxy S24 Ultra 256GB");
   const caseIndex = candidates.findIndex((c) => c.title.includes("Clear Case"));
   assert.ok(caseIndex > 0, "the case should not rank first");
-  assert.equal(candidates.find((c) => c.title.includes("Kettle"))?.inStock, false);
+  assert.equal(candidates.find((c) => c.title.includes("Kettle")), undefined);
+});
+
+test("extractCandidates reads out-of-stock wording off the card", () => {
+  const candidates = extractCandidates(fixture("results-cards.html"), "https://kloof.co.za/search", "Ceramic Pour-Over Kettle");
+  assert.equal(candidates[0].title, "Ceramic Pour-Over Kettle");
+  assert.equal(candidates[0].inStock, false);
 });
 
 test("extractCandidates returns nothing for a client-rendered page with no prices", () => {
   assert.deepEqual(extractCandidates(fixture("client-rendered-empty.html"), "https://x.co/search", "anything"), []);
+});
+
+test("extractCandidates does not read a model number or shorthand as a price", () => {
+  // Both patterns come off real retailer pages: "DDR4-3600" was being read as
+  // R4, and a "Headsets Under R1k" filter link as a product priced R1.
+  const html = `<!doctype html><html><body><ul>
+      <li><a href="/p/ram">G.Skill Ripjaws V 32GB DDR4-3600MHz CL16</a><span>R2 199</span></li>
+      <li><a href="/c/headsets">Headsets Under R1k</a></li>
+    </ul></body></html>`;
+
+  const candidates = extractCandidates(html, "https://x.co/search", "G.Skill Ripjaws 32GB DDR4-3600");
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].price, 2199);
 });

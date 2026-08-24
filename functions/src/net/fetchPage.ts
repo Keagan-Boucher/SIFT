@@ -115,6 +115,13 @@ export async function fetchPage(url: string): Promise<string | null> {
         return null;
       }
 
+      // A redirect can land on a different host whose robots.txt is stricter
+      // (apex to www is the common case). The policy that matters is the one on
+      // the origin actually serving the content, so it is rechecked here.
+      if (response.url && response.url !== url && !(await isAllowed(response.url))) {
+        throw new BlockedByRobotsError(response.url);
+      }
+
       if (!response.ok) return null;
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType && !/text\/html|application\/xhtml|application\/json|text\/plain/.test(contentType)) return null;

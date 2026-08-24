@@ -1,14 +1,30 @@
 import { logger } from "firebase-functions";
 
 import type { ResolutionMethod, ScoredCandidate, SourceStatus } from "../types";
-import { BlockedByRobotsError, fetchPage } from "../net/fetchPage";
-import { resolveDomain } from "../resolution";
+import { BlockedByRobotsError, fetchPage, normaliseDomain } from "../net/fetchPage";
+import { planResolution, acceptResolution } from "../resolution";
 import { recordOutcome } from "../resolution/registry";
 import { extractCandidates } from "../extraction/candidates";
+
+/**
+ * Each candidate URL costs a fetch, and the per-host limiter runs them one at a
+ * time, so the list is capped rather than exhausted.
+ */
+const MAX_CANDIDATE_URLS = 5;
+
+/**
+ * A results page whose best match scores below this does not contain the
+ * product: what was read is navigation, filters or an empty-search page. Taking
+ * it anyway would turn "not found" into a confidently wrong price, which is the
+ * exact failure the confidence scoring exists to prevent. Anything above this
+ * but below CONFIRM_THRESHOLD is still shown, flagged for the user to confirm.
+ */
+const MIN_ACCEPTABLE_MATCH = 0.25;
 
 export interface ScrapeSuccess {
   ok: true;
   method: ResolutionMethod;
+  listingUrl: string;
   /** Ranked best first by match confidence, then by price. */
   candidates: ScoredCandidate[];
 }
@@ -23,40 +39,117 @@ export interface ScrapeFailure {
 export type ScrapeOutcome = ScrapeSuccess | ScrapeFailure;
 
 /**
- * One source, end to end: resolve which page holds the listing, fetch it, and
- * score every product on it against the query. Both the live search pipeline
- * and the saved-search recheck run through here, so they cannot drift apart.
+ * A search URL that returns the homepage again is not a search page. This
+ * catches the common case of a JavaScript-driven search form with no action
+ * attribute, where the derived URL is just the homepage with a stray parameter.
+ */
+function isSamePageAsHomepage(html: string, homepage: string | null): boolean {
+  if (!homepage) return false;
+  if (html === homepage) return true;
+  // Length alone is enough for pages that differ only by a nonce or timestamp.
+  return Math.abs(html.length - homepage.length) < 64 && html.slice(0, 2000) === homepage.slice(0, 2000);
+}
+
+/**
+ * One source, end to end: work out which pages might hold the listing, then try
+ * them in order until one actually yields prices. Resolution only guesses, so
+ * nothing is accepted, or written back to the registry, until a fetch proves it.
  *
- * Never throws. A source that fails reports why, and the caller carries on with
- * the rest.
+ * Both the live search pipeline and the saved-search recheck run through here,
+ * so they cannot drift apart. Never throws: a source that fails reports why and
+ * the caller carries on with the rest.
  */
 export async function scrapeSource(
   query: string,
-  domain: string,
+  rawDomain: string,
   userSearchUrl?: string,
 ): Promise<ScrapeOutcome> {
+  const domain = normaliseDomain(rawDomain);
+
   try {
-    const resolution = await resolveDomain(domain, query, userSearchUrl);
-    if (!resolution) return { ok: false, status: "FAILED", reason: "No search page could be resolved" };
-    if (resolution.blocked) {
+    const plan = await planResolution(domain, query, userSearchUrl);
+
+    if (plan.blocked) {
       return { ok: false, status: "BLOCKED", reason: "robots.txt refuses automated access" };
     }
-
-    const html = await fetchPage(resolution.listingUrl);
-    if (!html) {
-      await recordOutcome(domain, false);
-      return { ok: false, status: "FAILED", method: resolution.method, reason: "Search page could not be fetched" };
+    if (plan.unreachable) {
+      return { ok: false, status: "FAILED", reason: "The site could not be reached" };
+    }
+    if (plan.candidates.length === 0) {
+      return {
+        ok: false,
+        status: "FAILED",
+        reason: plan.clientRendered
+          ? "The site builds its pages in the browser, so there is no search form to read"
+          : "No search page could be resolved",
+      };
     }
 
-    const candidates = extractCandidates(html, resolution.listingUrl, query);
-    if (candidates.length === 0) {
-      await recordOutcome(domain, false);
-      // The known limitation: client-rendered pages return HTML with no prices.
-      return { ok: false, status: "FAILED", method: resolution.method, reason: "No prices in the page HTML" };
+    let lastMethod: ResolutionMethod | undefined;
+    let fetchedAny = false;
+    let matchedNothing = false;
+    let attempted = 0;
+    let refused = 0;
+
+    for (const resolution of plan.candidates.slice(0, MAX_CANDIDATE_URLS)) {
+      lastMethod = resolution.method;
+      attempted++;
+
+      let html: string | null;
+      try {
+        html = await fetchPage(resolution.listingUrl);
+      } catch (error) {
+        // Plenty of sites allow the homepage but disallow /search. That refuses
+        // one guess, not the whole domain, so the cascade carries on.
+        if (error instanceof BlockedByRobotsError) {
+          refused++;
+          continue;
+        }
+        throw error;
+      }
+      if (!html) continue;
+      if (isSamePageAsHomepage(html, plan.homepage)) continue;
+      fetchedAny = true;
+
+      const candidates = extractCandidates(html, resolution.listingUrl, query);
+      if (candidates.length === 0) continue;
+
+      if (candidates[0].matchConfidence < MIN_ACCEPTABLE_MATCH) {
+        matchedNothing = true;
+        continue;
+      }
+
+      // Only now is the route known to work, so this is when it is written back.
+      await acceptResolution(domain, resolution);
+      await recordOutcome(domain, true);
+
+      return { ok: true, method: resolution.method, listingUrl: resolution.listingUrl, candidates };
     }
 
-    await recordOutcome(domain, true);
-    return { ok: true, method: resolution.method, candidates };
+    await recordOutcome(domain, false);
+
+    // Only when every route we had was refused is the source itself off-limits.
+    if (attempted > 0 && refused === attempted) {
+      return {
+        ok: false,
+        status: "BLOCKED",
+        method: lastMethod,
+        reason: "robots.txt refuses automated access to this site's search pages",
+      };
+    }
+
+    return {
+      ok: false,
+      status: "FAILED",
+      method: lastMethod,
+      reason: matchedNothing
+        ? "The search page carried prices, but none of them matched this product"
+        : plan.clientRendered
+          ? "The site builds its pages in the browser, so the HTML carries no prices"
+          : fetchedAny
+            ? "Search pages were reached but carried no readable prices"
+            : "No search page could be reached",
+    };
   } catch (error) {
     if (error instanceof BlockedByRobotsError) {
       return { ok: false, status: "BLOCKED", reason: "robots.txt refuses automated access" };
