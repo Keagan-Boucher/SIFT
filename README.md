@@ -162,16 +162,29 @@ That validation is what makes the write-back safe, and it is measurable: the fir
 
 Tiers 3 and 4 are fully generic and need no per-retailer configuration, which is what keeps the any-site promise intact. Tiers 1 and 2 are per-retailer work that scales badly, so they are scoped out of the MVP and stubbed in place.
 
+> [!IMPORTANT]
+> **Where the scraper runs decides whether it works.** This is the single biggest constraint on the project, and it is not a code problem.
+>
+> The same query, the same code, the same rules, run against `geekhome.co.za`:
+>
+> | Egress | Result |
+> | --- | --- |
+> | Home connection, via the local emulator suite | `form-discovery`, 12 candidates, top match **100%**, `MTG Teenage Mutant Ninja Turtles Bundle` at **R2 300**, in 2 seconds |
+> | Cloud Functions in `europe-west1` | TCP reset. `The site refused the connection` |
+>
+> Small retailers block foreign and datacentre traffic outright, and Cloudflare returns `403` to the same ranges. So **run the emulator suite locally to scrape South African retailers**, which is what `docker compose up` is for. The deployed functions still serve everything else, and everything except the outbound request behaves identically either way.
+
 > [!NOTE]
-> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Three things stop that working, and all three were hit while testing against real retailers rather than found in theory.
+> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Four things stop that working, and all four were hit against real retailers rather than found in theory.
 >
 > | Limitation | What happens | The fix, and where it sits |
 > | --- | --- | --- |
-> | Client-rendered storefronts | The homepage is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Headless rendering, a Future Consideration |
-> | Cloud IP blocking | The same site that returns 200 from a home connection returns **HTTP 403** to Cloud Functions, because the request comes from a Google datacentre range. | A residential or proxied egress route, out of scope |
+> | Client-rendered storefronts | The page is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Headless rendering, a Future Consideration |
+> | Datacentre IP blocking | `403` from Cloudflare, or a TCP reset, for a request that succeeds from a home connection. | Run the pipeline locally, as above |
 > | robots.txt on search paths | Many storefronts allow `/` and disallow `/search`. That is a refusal, and SIFT honours it. | Nothing to fix. The source is reported `BLOCKED` |
+> | Niche catalogues | The shop simply does not stock the product, and its search returns unrelated items. | Nothing to fix. Reported as such rather than as a failure |
 >
-> Each is reported to the user by name rather than as a generic failure, because "the site refused us from a cloud server" and "the site is down" need different responses.
+> Each is reported by name rather than as a generic failure, because "the site refused us from a datacentre", "the site is slow", "that domain does not exist" and "this shop does not stock it" need four different responses from the user.
 
 ### Scraping ethics
 
@@ -265,7 +278,15 @@ EXPO_PUBLIC_USE_FIREBASE_EMULATOR=false
 
 ### 3. Database and backend (Docker)
 
-The emulator suite gives you Firestore, Auth and Functions locally with no cloud project and no billing.
+The emulator suite gives you Firestore, Auth and Functions locally with no cloud project and no billing. It is also the **only** way to scrape retailers that refuse datacentre traffic, since requests then leave through your own connection.
+
+Set this in `.env` to point the app at it:
+
+```env
+EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true
+```
+
+The image installs JDK 21 from Adoptium, because firebase-tools 15 refuses anything older, and the emulators bind to `0.0.0.0` so the published ports are reachable from the host.
 
 ```bash
 docker compose up
@@ -505,7 +526,7 @@ Composite indexes back the sorted listing query, both per-user listings, and the
 
 ## Testing
 
-Scraping is the part most likely to break silently, so it is covered by 43 tests against twelve HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
+Scraping is the part most likely to break silently, so it is covered by 49 tests against twelve HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
 
 ```bash
 npm test --prefix functions
@@ -516,6 +537,7 @@ npm test --prefix functions
 | `extraction` | JSON-LD products, products nested in `@graph`, Open Graph price meta, microdata, heuristic parsing with no price class, candidate extraction from an `ItemList` and from repeated cards, and correct `null` returns when a page carries nothing extractable |
 | `resolution` | Search-form discovery including hidden scope fields and skipped POST forms, platform fingerprinting, template building and validation, and turning a user-pasted URL into a reusable template |
 | `matching` | Exact matches, wrong storage variants, accessories that match the query word for word, and the confidence-to-badge mapping |
+| `net` | Telling a mistyped domain, a refused connection, a certificate problem and a genuine timeout apart, and the www fallback for three-label ccTLD domains |
 | `pipeline` | The whole scrape end to end against a local HTTP server: robots.txt fetched first and obeyed (including after a redirect to a stricter host), the search URL derived from the homepage, a URL that just returns the homepage rejected, the results page parsed, and each failure mode reporting its own reason |
 
 The pipeline suite runs without Firebase, which also proves the registry degrades rather than throwing when Firestore is unavailable.
