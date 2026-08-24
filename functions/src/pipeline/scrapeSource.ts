@@ -7,6 +7,8 @@ import { planResolution, acceptResolution } from "../resolution";
 import { looksLikeNoResults } from "../resolution/commonPaths";
 import { recordOutcome } from "../resolution/registry";
 import { extractCandidates } from "../extraction/candidates";
+import { relaxedQueries } from "../matching/relax";
+import { buildFromTemplate } from "../resolution/template";
 import { tokenize } from "../matching/score";
 
 /**
@@ -114,6 +116,9 @@ export async function scrapeSource(
     // Kept so a total failure can report what actually happened on the last
     // attempt, rather than a generic "could not be reached".
     let lastFailure: FetchResult | null = null;
+    // The first route that served a real search page. If the strict query found
+    // nothing, this is the one worth asking again in looser terms.
+    let readablePattern: string | null = null;
 
     for (const resolution of plan.candidates.slice(0, MAX_CANDIDATE_URLS)) {
       lastMethod = resolution.method;
@@ -138,6 +143,7 @@ export async function scrapeSource(
       }
       if (isSamePageAsHomepage(html, plan.homepage)) continue;
       fetchedAny = true;
+      if (!readablePattern && resolution.searchUrlPattern) readablePattern = resolution.searchUrlPattern;
 
       const candidates = extractCandidates(html, resolution.listingUrl, query);
       if (candidates.length === 0) {
@@ -158,6 +164,30 @@ export async function scrapeSource(
       await recordOutcome(domain, true);
 
       return { ok: true, method: resolution.method, listingUrl: resolution.listingUrl, candidates };
+    }
+
+    // The site has a working search page, it just did not understand the query.
+    // Retailer search is a literal AND across words, so a product listed under
+    // slightly different wording returns nothing. Ask again with the least
+    // distinctive words removed, still scoring against what the user typed.
+    if (readablePattern && (emptyResultSet || matchedNothing)) {
+      for (const relaxed of relaxedQueries(query).slice(1)) {
+        const url = buildFromTemplate(readablePattern, relaxed);
+        let retry: FetchResult;
+        try {
+          retry = await fetchPageDetailed(url);
+        } catch (error) {
+          if (error instanceof BlockedByRobotsError) break;
+          throw error;
+        }
+        if (!retry.html) continue;
+
+        const candidates = extractCandidates(retry.html, url, query);
+        if (candidates.length === 0 || candidates[0].matchConfidence < MIN_ACCEPTABLE_MATCH) continue;
+
+        await recordOutcome(domain, true);
+        return { ok: true, method: lastMethod ?? "platform-pattern", listingUrl: url, candidates };
+      }
     }
 
     await recordOutcome(domain, false);

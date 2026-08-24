@@ -60,6 +60,8 @@ export async function resolveFromRegistry(domain: string, query: string): Promis
     method: "registry",
     listingUrl: buildFromTemplate(template.searchUrlPattern, query),
     confidence: 0.9,
+    // Carried so the caller can rebuild the URL with a relaxed query.
+    searchUrlPattern: template.searchUrlPattern,
   };
 }
 

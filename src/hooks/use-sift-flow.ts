@@ -11,6 +11,13 @@ import { useFlowStore, type Screen } from '@/store/useFlowStore';
 
 export type { Screen };
 
+/** True middle of a series: the average of the two middle values on an even count. */
+function medianOf(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
 /** Trims a pasted URL down to the bare domain the backend expects. */
 function toDomain(input: string): string {
   return input
@@ -264,10 +271,18 @@ export function useSiftFlow() {
     const confirmInsight =
       candidates.length === 0
         ? 'Nothing to confirm. Every source matched above the threshold.'
-        : `${confirmDomain} returned ${candidates.length} listings for this query and the best scored ${Math.round((candidates[0]?.confidence ?? 0) * 100)}%, under the 60% threshold. The one you pick is the one compared, and it is counted against this source for next time.`;
+        : `${confirmDomain} returned ${candidates.length} listings for this query and the best scored ${Math.round((candidates[0]?.confidence ?? 0) * 100)}%, which does not clear the 60% needed to trust it. The one you pick is the one compared, and it is counted against this source for next time.`;
 
-    const median =
-      sorted.length > 0 ? sorted[Math.floor((sorted.length - 1) / 2)].value : null;
+    // The average of the two middle values on an even count. Taking the lower
+    // one made the median equal the cheapest price whenever two sources
+    // returned, which read as "0% below the median" and taught nothing.
+    const median = (() => {
+      if (sorted.length === 0) return null;
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 1
+        ? sorted[mid].value
+        : Math.round((sorted[mid - 1].value + sorted[mid].value) / 2);
+    })();
     const belowMedian =
       cheapest && median && median > 0 ? Math.round(((median - cheapest.value) / median) * 100) : 0;
 
@@ -284,7 +299,7 @@ export function useSiftFlow() {
         ? cheapest
           ? `NO HISTORY YET · TODAY ${cheapest.price}`
           : 'NO HISTORY YET'
-        : `LOW ${fmtPrice(Math.min(...history))} · MEDIAN ${fmtPrice([...history].sort((a, b) => a - b)[Math.floor((history.length - 1) / 2)])} · TODAY ${fmtPrice(history[history.length - 1])}, ${historyTrend}`;
+        : `LOW ${fmtPrice(Math.min(...history))} · MEDIAN ${fmtPrice(medianOf(history))} · TODAY ${fmtPrice(history[history.length - 1])}, ${historyTrend}`;
 
     const heuristicCount = tiles.filter((tile) => tile.tier === 4).length;
     const resultMetadata = [

@@ -68,8 +68,17 @@ export function scoreMatch(query: string, title: string): MatchScore {
   return { confidence: Math.round(confidence * 100) / 100, missing };
 }
 
-/** Below this the user is asked to pick the right listing rather than trusting the match. */
+/**
+ * A match has to beat this to be trusted, not merely reach it. Sitting exactly
+ * on the line means a meaningful part of the query went unmatched, which is the
+ * case the confirm step exists for.
+ */
 export const CONFIRM_THRESHOLD = 0.6;
+
+/** Whether the user should be asked to pick, rather than the top match assumed. */
+export function needsConfirmation(confidence: number): boolean {
+  return confidence <= CONFIRM_THRESHOLD;
+}
 
 /** Maps a 0-1 confidence onto the 1-4 badge the UI renders. */
 export function confidenceBadge(confidence: number): 1 | 2 | 3 | 4 {

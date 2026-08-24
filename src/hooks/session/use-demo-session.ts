@@ -90,7 +90,7 @@ export function useDemoSession(): SiftSession {
                 kind: 'prompt',
                 domain: 'evetech.co.za',
                 heading: 'CONFIRM_MATCH',
-                body: 'evetech.co.za matched at 42%, under the 60% threshold. Select that tile to resolve it.',
+                body: 'evetech.co.za matched at 42%, which does not clear the 60% needed to trust it. Select that tile to resolve it.',
               },
             ]
           : s.notes,

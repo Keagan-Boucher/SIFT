@@ -6,7 +6,7 @@ import pLimit from "p-limit";
 
 import type { ScoredCandidate, SearchStatus, SourceState } from "../types";
 import { normaliseDomain } from "../net/fetchPage";
-import { CONFIRM_THRESHOLD, confidenceBadge } from "../matching/score";
+import { confidenceBadge, needsConfirmation } from "../matching/score";
 import { scrapeSource } from "./scrapeSource";
 
 /** How many sources are worked at once. Each host is separately limited to one. */
@@ -77,7 +77,7 @@ async function writeListing(
       matchConfidence: best.matchConfidence,
       confidenceBadge: confidenceBadge(best.matchConfidence),
       extractionTier: best.tier,
-      needsConfirmation: best.matchConfidence < CONFIRM_THRESHOLD,
+      needsConfirmation: needsConfirmation(best.matchConfidence),
       candidates: rest.slice(0, MAX_STORED_CANDIDATES),
       scrapedAt: FieldValue.serverTimestamp(),
     });

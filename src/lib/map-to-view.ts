@@ -155,6 +155,6 @@ export function toConfirmNotes(listings: ListingDoc[]): NoteView[] {
       kind: 'prompt' as const,
       domain: listing.retailerDomain,
       heading: 'CONFIRM_MATCH',
-      body: `${listing.retailerDomain} matched at ${Math.round(listing.matchConfidence * 100)}%, under the 60% threshold. Select that tile to resolve it.`,
+      body: `${listing.retailerDomain} matched at ${Math.round(listing.matchConfidence * 100)}%, which does not clear the 60% needed to trust it. Select that tile to resolve it.`,
     }));
 }
