@@ -1,4 +1,6 @@
+import { getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { logger } from "firebase-functions";
 import type { ResolutionMethod, ResolutionResult } from "../types";
 import { buildFromTemplate, validateTemplate } from "./template";
 
@@ -12,6 +14,15 @@ const COLLECTION = "retailerTemplates";
 const MAX_FAILURE_RATIO = 0.5;
 const MIN_ATTEMPTS_BEFORE_DISTRUST = 4;
 
+/**
+ * The registry is the one part of the scraper that needs Firestore. Outside a
+ * deployed function (a parser test, a local dry run) there is no admin app, and
+ * the cascade should still work without one.
+ */
+function registryAvailable(): boolean {
+  return getApps().length > 0;
+}
+
 interface TemplateDoc {
   searchUrlPattern?: string;
   successCount?: number;
@@ -24,10 +35,20 @@ interface TemplateDoc {
  * solved once is solved for everyone after.
  */
 export async function resolveFromRegistry(domain: string, query: string): Promise<ResolutionResult | null> {
-  const doc = await getFirestore().collection(COLLECTION).doc(domain).get();
-  if (!doc.exists) return null;
+  if (!registryAvailable()) return null;
 
-  const template = doc.data() as TemplateDoc;
+  let template: TemplateDoc;
+  try {
+    const doc = await getFirestore().collection(COLLECTION).doc(domain).get();
+    if (!doc.exists) return null;
+    template = doc.data() as TemplateDoc;
+  } catch (error) {
+    // A registry that is unreachable should slow the cascade down, not break it:
+    // methods B and C still resolve the domain from scratch.
+    logger.warn(`registry lookup for ${domain} failed`, error);
+    return null;
+  }
+
   if (!template.searchUrlPattern || !validateTemplate(template.searchUrlPattern)) return null;
 
   const successes = template.successCount ?? 0;
@@ -48,22 +69,27 @@ export async function resolveFromRegistry(domain: string, query: string): Promis
  * site short-circuits straight to method A.
  */
 export async function recordTemplate(domain: string, pattern: string, method: ResolutionMethod): Promise<void> {
-  if (!validateTemplate(pattern)) return;
+  if (!validateTemplate(pattern) || !registryAvailable()) return;
 
-  await getFirestore()
-    .collection(COLLECTION)
-    .doc(domain)
-    .set(
-      {
-        domain,
-        searchUrlPattern: pattern,
-        resolutionMethod: method,
-        lastValidatedAt: FieldValue.serverTimestamp(),
-        successCount: FieldValue.increment(0),
-        failureCount: FieldValue.increment(0),
-      },
-      { merge: true },
-    );
+  try {
+    await getFirestore()
+      .collection(COLLECTION)
+      .doc(domain)
+      .set(
+        {
+          domain,
+          searchUrlPattern: pattern,
+          resolutionMethod: method,
+          lastValidatedAt: FieldValue.serverTimestamp(),
+          successCount: FieldValue.increment(0),
+          failureCount: FieldValue.increment(0),
+        },
+        { merge: true },
+      );
+  } catch (error) {
+    // Write-back is an optimisation for the next search, never a reason to fail this one.
+    logger.warn(`registry write-back for ${domain} failed`, error);
+  }
 }
 
 /**
@@ -71,14 +97,20 @@ export async function recordTemplate(domain: string, pattern: string, method: Re
  * deterministic learning in the system: counted outcomes, not inference.
  */
 export async function recordOutcome(domain: string, succeeded: boolean): Promise<void> {
-  const doc = getFirestore().collection(COLLECTION).doc(domain);
-  const snapshot = await doc.get();
-  if (!snapshot.exists) return;
+  if (!registryAvailable()) return;
 
-  await doc.set(
-    succeeded
-      ? { successCount: FieldValue.increment(1), lastValidatedAt: FieldValue.serverTimestamp() }
-      : { failureCount: FieldValue.increment(1) },
-    { merge: true },
-  );
+  try {
+    const doc = getFirestore().collection(COLLECTION).doc(domain);
+    const snapshot = await doc.get();
+    if (!snapshot.exists) return;
+
+    await doc.set(
+      succeeded
+        ? { successCount: FieldValue.increment(1), lastValidatedAt: FieldValue.serverTimestamp() }
+        : { failureCount: FieldValue.increment(1) },
+      { merge: true },
+    );
+  } catch (error) {
+    logger.warn(`registry outcome for ${domain} failed`, error);
+  }
 }

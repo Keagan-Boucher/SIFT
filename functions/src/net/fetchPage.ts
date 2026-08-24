@@ -74,6 +74,11 @@ async function loadRobots(origin: string): Promise<ReturnType<typeof robotsParse
   return robots;
 }
 
+/** Drops every cached robots.txt. Used by tests and after a long cold period. */
+export function clearRobotsCache(): void {
+  robotsCache.clear();
+}
+
 /** True when robots.txt permits SiftBot to request `url`. */
 export async function isAllowed(url: string): Promise<boolean> {
   let origin: string;
@@ -129,7 +134,10 @@ export function normaliseDomain(input: string): string {
     .replace(/[/?#].*$/, "");
 }
 
-/** Builds the https origin for a bare domain. */
+const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+/** Builds the origin for a bare domain. Loopback has no TLS, so it stays http. */
 export function originFor(domain: string): string {
-  return `https://${normaliseDomain(domain)}`;
+  const host = normaliseDomain(domain);
+  return `${LOOPBACK.test(host) ? "http" : "https"}://${host}`;
 }

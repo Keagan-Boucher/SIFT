@@ -13,7 +13,7 @@
     "shell": "npm run build && firebase functions:shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "node --require ts-node/register --test src/extraction/__tests__/extraction.test.ts src/resolution/__tests__/resolution.test.ts src/matching/__tests__/matching.test.ts"
+    "test": "node --require ts-node/register --test src/extraction/__tests__/extraction.test.ts src/resolution/__tests__/resolution.test.ts src/matching/__tests__/matching.test.ts src/pipeline/__tests__/pipeline.test.ts"
   },
   "dependencies": {
     "cheerio": "^1.0.0",
