@@ -7,6 +7,7 @@ import { planResolution, acceptResolution } from "../resolution";
 import { looksLikeNoResults } from "../resolution/commonPaths";
 import { recordOutcome } from "../resolution/registry";
 import { extractCandidates } from "../extraction/candidates";
+import { extractCandidatesHeadless } from "../extraction/headless";
 import { relaxedQueries } from "../matching/relax";
 import { buildFromTemplate } from "../resolution/template";
 import { tokenize } from "../matching/score";
@@ -208,6 +209,23 @@ export async function scrapeSource(
       }
     }
 
+    // Every plain fetch above came back either empty or without this product,
+    // and the site looks like it draws its content in with JavaScript. That is
+    // exactly the case a headless render exists for, so it is worth the cost of
+    // a browser before giving up on the source entirely. Only the resolution's
+    // best guess is rendered, not every candidate URL: a browser is expensive
+    // enough that this is a last resort, not another pass of the cascade.
+    if (plan.clientRendered || productAbsentFromPage) {
+      const target = plan.candidates[0];
+      const rendered = await extractCandidatesHeadless(target.listingUrl, query);
+
+      if (rendered.length > 0 && rendered[0].matchConfidence >= MIN_ACCEPTABLE_MATCH) {
+        await acceptResolution(domain, target);
+        await recordOutcome(domain, true);
+        return { ok: true, method: target.method, listingUrl: target.listingUrl, candidates: rendered };
+      }
+    }
+
     await recordOutcome(domain, false);
 
     // Only when every route we had was refused is the source itself off-limits.
@@ -227,11 +245,11 @@ export async function scrapeSource(
       reason: emptyResultSet
         ? "The site's own search found nothing for this product"
         : productAbsentFromPage
-        ? "The search page never mentions this product, so its results are loaded in the browser rather than sent as HTML"
+        ? "The site draws its results in with JavaScript, and rendering the page in a browser still found nothing for this product"
         : matchedNothing
           ? "The search page listed prices, but none of them were this product"
           : plan.clientRendered
-            ? "The site builds its pages in the browser, so the HTML carries no prices"
+            ? "The site builds its pages in the browser, and rendering it that way still carried no prices"
             : fetchedAny
               ? "The search page carried no prices in its HTML, so they are drawn in the browser"
               : lastFailure

@@ -77,7 +77,9 @@ export async function recheck(db: Firestore, snapshot: DocumentSnapshot): Promis
 
 /** Re-runs one watched search now instead of waiting for the nightly sweep. */
 export const recheckSavedSearch = onCall<{ savedSearchId: string }, Promise<RecheckResult>>(
-  { timeoutSeconds: 300, memory: "512MiB" },
+  // 1GiB, up from 512MiB: scrapeSource can now launch a headless Chromium
+  // render (Tier 5) for a client-rendered source.
+  { timeoutSeconds: 300, memory: "1GiB" },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "sign in to check a saved search");
 
@@ -100,7 +102,8 @@ export const recheckSavedSearch = onCall<{ savedSearchId: string }, Promise<Rech
  * so a watch that only updates when the user opens the app is not a watch.
  */
 export const scheduledRecheck = onSchedule(
-  { schedule: "0 3 * * *", timeZone: "Africa/Johannesburg", timeoutSeconds: 540, memory: "512MiB" },
+  // 1GiB, up from 512MiB: same headless-render path as recheckSavedSearch.
+  { schedule: "0 3 * * *", timeZone: "Africa/Johannesburg", timeoutSeconds: 540, memory: "1GiB" },
   async () => {
     const db = getFirestore();
     const snapshot = await db.collection("savedSearches").limit(MAX_SAVED_SEARCHES_PER_SWEEP).get();

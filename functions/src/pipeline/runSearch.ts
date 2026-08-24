@@ -150,7 +150,9 @@ export async function runSearchPipeline(searchId: string, data: SearchData): Pro
  * client a real-time stream rather than a request it has to sit and wait on.
  */
 export const onSearchCreated = onDocumentCreated(
-  { document: "searches/{searchId}", timeoutSeconds: 300, memory: "512MiB" },
+  // 1GiB, up from 512MiB: a headless render (Tier 5) needs a real Chromium
+  // process running inside this instance, which a plain fetch never did.
+  { document: "searches/{searchId}", timeoutSeconds: 300, memory: "1GiB" },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;
