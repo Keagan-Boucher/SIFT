@@ -147,7 +147,9 @@ The pipeline is deliberately split in two. Resolution answers _which page_, extr
 |   C   | Known ecommerce platform patterns (Shopify, WooCommerce, Magento) | Implemented |
 |   D   | Ask the user to paste a search URL once                           | Implemented |
 
-Every successful resolution writes its template back to the registry, so the system gets faster and broader with use.
+Nothing in this stage commits to an answer. Each method only proposes a URL; the homepage is fetched once and every method reads from that single response. The pipeline then tries the proposed URLs in order and accepts the first that actually yields prices matching the query. Only then is the template written back to the registry, so a route that looked plausible but returned a category page never poisons the next search.
+
+That validation is what makes the write-back safe, and it is measurable: the first search against a new domain resolves by fingerprint, the second resolves by `registry` and returns faster.
 
 ### Stage 2: extraction cascade
 
@@ -161,11 +163,24 @@ Every successful resolution writes its template back to the registry, so the sys
 Tiers 3 and 4 are fully generic and need no per-retailer configuration, which is what keeps the any-site promise intact. Tiers 1 and 2 are per-retailer work that scales badly, so they are scoped out of the MVP and stubbed in place.
 
 > [!NOTE]
-> **Known limitation.** Heavily client-rendered sites return HTML with no prices, so extraction fails even when resolution succeeds. The fix is headless rendering, which is on the roadmap rather than in the MVP.
+> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Three things stop that working, and all three were hit while testing against real retailers rather than found in theory.
+>
+> | Limitation | What happens | The fix, and where it sits |
+> | --- | --- | --- |
+> | Client-rendered storefronts | The homepage is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Headless rendering, a Future Consideration |
+> | Cloud IP blocking | The same site that returns 200 from a home connection returns **HTTP 403** to Cloud Functions, because the request comes from a Google datacentre range. | A residential or proxied egress route, out of scope |
+> | robots.txt on search paths | Many storefronts allow `/` and disallow `/search`. That is a refusal, and SIFT honours it. | Nothing to fix. The source is reported `BLOCKED` |
+>
+> Each is reported to the user by name rather than as a generic failure, because "the site refused us from a cloud server" and "the site is down" need different responses.
 
 ### Scraping ethics
 
-Every outbound request goes through one function in [`functions/src/net/fetchPage.ts`](functions/src/net/fetchPage.ts). It fetches `robots.txt` first, caches it per origin for an hour, and refuses any disallowed path outright, which surfaces as a `BLOCKED` source in the UI rather than being worked around. Requests are limited to one at a time per host and four hosts at once, with a ten second timeout. SIFT identifies itself as `SiftBot` rather than spoofing a browser user agent. Official retailer APIs are preferred wherever they exist.
+Every outbound request goes through one function in [`functions/src/net/fetchPage.ts`](functions/src/net/fetchPage.ts). It fetches `robots.txt` first, caches it per origin for an hour, and refuses any disallowed path outright. Requests are limited to one at a time per host and four hosts at once, with a ten second timeout. SIFT identifies itself as `SiftBot` rather than spoofing a browser user agent. Official retailer APIs are preferred wherever they exist.
+
+Two details matter more than they look:
+
+- **A redirect can change the policy.** An apex domain that allows everything often redirects to a `www` host whose `robots.txt` is stricter. The policy that binds is the one on the host actually serving the content, so it is rechecked after the redirect.
+- **One refused path is not a refused site.** Storefronts commonly allow `/` and disallow `/search`. That rules out one guessed route, not the domain, so the cascade continues and a source is only marked `BLOCKED` once every route it has was refused.
 
 ---
 
@@ -490,7 +505,7 @@ Composite indexes back the sorted listing query, both per-user listings, and the
 
 ## Testing
 
-Scraping is the part most likely to break silently, so it is covered by 38 tests against twelve HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
+Scraping is the part most likely to break silently, so it is covered by 43 tests against twelve HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
 
 ```bash
 npm test --prefix functions
@@ -501,7 +516,7 @@ npm test --prefix functions
 | `extraction` | JSON-LD products, products nested in `@graph`, Open Graph price meta, microdata, heuristic parsing with no price class, candidate extraction from an `ItemList` and from repeated cards, and correct `null` returns when a page carries nothing extractable |
 | `resolution` | Search-form discovery including hidden scope fields and skipped POST forms, platform fingerprinting, template building and validation, and turning a user-pasted URL into a reusable template |
 | `matching` | Exact matches, wrong storage variants, accessories that match the query word for word, and the confidence-to-badge mapping |
-| `pipeline` | The whole scrape end to end against a local HTTP server: robots.txt fetched first and obeyed, the search URL derived from the homepage, the results page parsed, and each failure mode reporting its own reason |
+| `pipeline` | The whole scrape end to end against a local HTTP server: robots.txt fetched first and obeyed (including after a redirect to a stricter host), the search URL derived from the homepage, a URL that just returns the homepage rejected, the results page parsed, and each failure mode reporting its own reason |
 
 The pipeline suite runs without Firebase, which also proves the registry degrades rather than throwing when Firestore is unavailable.
 
@@ -582,6 +597,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Scheduled saved-search rechecks          |       Complete       |
 | Firebase Auth with guest upgrade         |       Complete       |
 | Frontend wired to live Firestore         |       Complete       |
+| Deployed and verified against live sites |       Complete       |
 | Firestore schema, rules, indexes         |       Complete       |
 | Docker emulator environment              |       Complete       |
 | EAS build profiles                       |       Complete       |
