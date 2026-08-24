@@ -16,7 +16,7 @@ import { SavedView } from '@/components/sift/views/SavedView';
 import { SourcesView } from '@/components/sift/views/SourcesView';
 import { SESSION_CODE } from '@/constants/sift-mock-data';
 import { SiftColors, SiftSpacing } from '@/constants/sift-theme';
-import { useLockLandscape } from '@/hooks/use-lock-landscape';
+import { useOrientationPolicy } from '@/hooks/use-orientation-policy';
 import { useOrientation } from '@/hooks/use-orientation';
 import { useSiftFlow } from '@/hooks/use-sift-flow';
 
@@ -30,7 +30,7 @@ const VIEW_BY_SCREEN = {
 };
 
 export default function SiftAppScreen() {
-  useLockLandscape();
+  useOrientationPolicy();
   const orientation = useOrientation();
   const flow = useSiftFlow();
   const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, mode, isGuest, accountEmail, actions } = flow;
