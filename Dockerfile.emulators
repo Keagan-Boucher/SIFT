@@ -1,10 +1,23 @@
 FROM node:20-slim
 
-RUN apt-get update && apt-get install -y openjdk-17-jre-headless --no-install-recommends \
+# firebase-tools 15 requires JDK 21 or newer for the Firestore and Auth
+# emulators. Debian bookworm ships 17, so Java comes from Adoptium instead.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget gnupg ca-certificates \
+    && wget -qO- https://packages.adoptium.net/artifactory/api/gpg/key/public \
+       | gpg --dearmor > /etc/apt/trusted.gpg.d/adoptium.gpg \
+    && echo "deb https://packages.adoptium.net/artifactory/deb bookworm main" \
+       > /etc/apt/sources.list.d/adoptium.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends temurin-21-jre \
+    && apt-get purge -y wget gnupg \
+    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g firebase-tools
 
+# Dependencies are installed inside the image, and docker-compose masks the
+# host's node_modules over the mount, so a Windows install never leaks into Linux.
 WORKDIR /workspace/functions
 COPY functions/package.json functions/package-lock.json* ./
 RUN npm install

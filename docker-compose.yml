@@ -10,9 +10,18 @@ services:
       - "9099:9099" # Auth
     volumes:
       - ./functions:/workspace/functions
+      # Keeps the image's Linux node_modules instead of the host's Windows ones.
+      - /workspace/functions/node_modules
       - ./firebase.json:/workspace/firebase.json
       - ./firestore.rules:/workspace/firestore.rules
       - ./firestore.indexes.json:/workspace/firestore.indexes.json
       - ./.firebaserc:/workspace/.firebaserc
+      - ./.emulator-data:/workspace/.emulator-data
     working_dir: /workspace
-    command: firebase emulators:start --import=./.emulator-data --export-on-exit
+    # The scraper's outbound requests leave through the host's connection, which
+    # is the point: retailers that refuse Google's datacentre ranges answer here.
+    command: >
+      firebase emulators:start
+      --only auth,firestore,functions
+      --project sift-app-9c777
+      --export-on-exit=./.emulator-data
