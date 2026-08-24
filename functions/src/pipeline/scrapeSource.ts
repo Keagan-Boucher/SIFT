@@ -81,6 +81,9 @@ export async function scrapeSource(
   query: string,
   rawDomain: string,
   userSearchUrl?: string,
+  // Overridable so tests can pin down the headless-fallback decision without
+  // a Chromium binary, which is not available in this environment.
+  headlessExtract: typeof extractCandidatesHeadless = extractCandidatesHeadless,
 ): Promise<ScrapeOutcome> {
   const domain = normaliseDomain(rawDomain);
 
@@ -112,6 +115,14 @@ export async function scrapeSource(
     let matchedNothing = false;
     let productAbsentFromPage = false;
     let emptyResultSet = false;
+    // A fetched page that read as neither "has candidates" nor "reports no
+    // results" is the case a plain fetch cannot tell apart from a page whose
+    // products simply have not arrived yet: the markup is there, nothing
+    // price-shaped is in it, and the theme's empty-state wording is not either.
+    // That is exactly what a client-rendered results page looks like before its
+    // JavaScript runs, so it is worth a headless render alongside the two cases
+    // already known to mean that.
+    let noPricesInHtml = false;
     let attempted = 0;
     let refused = 0;
     // Kept so a total failure can report what actually happened on the last
@@ -161,6 +172,8 @@ export async function scrapeSource(
         if (looksLikeNoResults(html)) {
           emptyResultSet = true;
           if (isTrustedRoute) break;
+        } else {
+          noPricesInHtml = true;
         }
         continue;
       }
@@ -215,9 +228,9 @@ export async function scrapeSource(
     // a browser before giving up on the source entirely. Only the resolution's
     // best guess is rendered, not every candidate URL: a browser is expensive
     // enough that this is a last resort, not another pass of the cascade.
-    if (plan.clientRendered || productAbsentFromPage) {
+    if (plan.clientRendered || productAbsentFromPage || noPricesInHtml) {
       const target = plan.candidates[0];
-      const rendered = await extractCandidatesHeadless(target.listingUrl, query);
+      const rendered = await headlessExtract(target.listingUrl, query);
 
       if (rendered.length > 0 && rendered[0].matchConfidence >= MIN_ACCEPTABLE_MATCH) {
         await acceptResolution(domain, target);
@@ -251,7 +264,7 @@ export async function scrapeSource(
           : plan.clientRendered
             ? "The site builds its pages in the browser, and rendering it that way still carried no prices"
             : fetchedAny
-              ? "The search page carried no prices in its HTML, so they are drawn in the browser"
+              ? "The search page carried no prices in its HTML, and rendering it in a browser still found none"
               : lastFailure
                 ? `Its search pages could not be read. ${describeFetchFailure(lastFailure)}`
                 : "No search page could be reached",

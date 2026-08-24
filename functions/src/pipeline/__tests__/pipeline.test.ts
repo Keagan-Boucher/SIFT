@@ -214,6 +214,42 @@ test("scrapeSource reports failure when every candidate url is a dead end", asyn
   assert.match(outcome.reason, /no readable prices|could not be read|HTTP 404/);
 });
 
+test("scrapeSource tries a headless render when a results page reads as neither candidates nor no-results", async () => {
+  // The Takealot case: a normal, non-shell homepage (so plan.clientRendered is
+  // false), whose search results page comes back 200 with no price-shaped
+  // markup and no "no results" wording either, because the products are
+  // fetched in by the page's own JavaScript after load. This must not be
+  // silently indistinguishable from "the site simply has nothing to say".
+  serve({ results: '<!doctype html><html><body><div id="results-grid"></div></body></html>' });
+
+  const outcome = await scrapeSource("Samsung Galaxy S24 Ultra 256GB", origin(), undefined, async (url) => [
+    {
+      tier: 5,
+      title: "Samsung Galaxy S24 Ultra 256GB Titanium Black",
+      price: 2899,
+      currency: "ZAR",
+      inStock: true,
+      url,
+      matchConfidence: 1,
+    },
+  ]);
+
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.candidates[0].tier, 5);
+  assert.equal(outcome.candidates[0].price, 2899);
+});
+
+test("scrapeSource reports the render was tried when headless also finds nothing", async () => {
+  serve({ results: '<!doctype html><html><body><div id="results-grid"></div></body></html>' });
+
+  const outcome = await scrapeSource("anything", origin(), undefined, async () => []);
+
+  assert.equal(outcome.ok, false);
+  if (outcome.ok) return;
+  assert.match(outcome.reason, /rendering it in a browser still found none/);
+});
+
 test("scrapeSource obeys the robots.txt of the host it is redirected to", async () => {
   // Real case: an apex domain allows everything, redirects to www, and www
   // refuses. The policy that binds is the one on the host serving the content.
