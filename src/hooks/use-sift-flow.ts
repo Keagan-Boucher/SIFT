@@ -1,45 +1,15 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { SiftColors } from '@/constants/sift-theme';
 import { fmtPrice } from '@/lib/format-price';
-import { DEFAULT_QUERY, SESSION_CODE } from '@/constants/sift-mock-data';
+import { SESSION_CODE } from '@/constants/sift-mock-data';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { useDemoSession } from '@/hooks/session/use-demo-session';
 import { useLiveSession } from '@/hooks/session/use-live-session';
-import type { NoteView } from '@/types/view';
+import { useFlowStore, type Screen } from '@/store/useFlowStore';
 
-export type Screen = 'sources' | 'live' | 'confirm' | 'results' | 'dashboard' | 'saved';
-
-interface ArchiveEntry extends NoteView {
-  stamp: string;
-}
-
-/**
- * UI-only state. Everything about sources, listings, saved searches and notes
- * comes from the session, so this holds nothing the backend also owns.
- */
-interface FlowState {
-  screen: Screen;
-  input: string;
-  query: string;
-  showArchive: boolean;
-  showAccount: boolean;
-  chosen: number;
-  selected: number | null;
-  dismissed: ArchiveEntry[];
-}
-
-const INITIAL_STATE: FlowState = {
-  screen: 'sources',
-  input: '',
-  query: DEFAULT_QUERY,
-  showArchive: false,
-  showAccount: false,
-  chosen: 0,
-  selected: null,
-  dismissed: [],
-};
+export type { Screen };
 
 /** Trims a pasted URL down to the bare domain the backend expects. */
 function toDomain(input: string): string {
@@ -52,7 +22,7 @@ function toDomain(input: string): string {
 }
 
 export function useSiftFlow() {
-  const [state, setState] = useState<FlowState>(INITIAL_STATE);
+  const state = useFlowStore();
 
   const auth = useAuth();
   const live = useLiveSession(auth.user?.uid ?? null);
@@ -61,24 +31,18 @@ export function useSiftFlow() {
   // Live only once there is a project and a signed-in uid to own the documents.
   const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
 
-  const setScreen = useCallback((screen: Screen) => setState((s) => ({ ...s, screen })), []);
-  const setQuery = useCallback((query: string) => setState((s) => ({ ...s, query })), []);
-  const setInput = useCallback((input: string) => setState((s) => ({ ...s, input })), []);
-  const chooseRecent = useCallback((name: string) => setState((s) => ({ ...s, query: name })), []);
-  const toggleArchive = useCallback(() => setState((s) => ({ ...s, showArchive: !s.showArchive, showAccount: false })), []);
-  const toggleAccount = useCallback(() => setState((s) => ({ ...s, showAccount: !s.showAccount, showArchive: false })), []);
-  const selectTile = useCallback((index: number) => setState((s) => ({ ...s, selected: index })), []);
-  const closeListing = useCallback(() => setState((s) => ({ ...s, selected: null })), []);
-  const chooseCandidate = useCallback((index: number) => setState((s) => ({ ...s, chosen: index })), []);
+  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount } = state;
+  const chooseRecent = setQuery;
+  const selectTile = useCallback((index: number) => state.select(index), [state]);
+  const closeListing = useCallback(() => state.select(null), [state]);
+  const chooseCandidate = useCallback((index: number) => state.choose(index), [state]);
   const openSaved = useCallback(() => setScreen('saved'), [setScreen]);
 
   const addSourceFromInput = useCallback(() => {
-    setState((s) => {
-      const domain = toDomain(s.input);
-      if (domain) session.addSource(domain);
-      return { ...s, input: '' };
-    });
-  }, [session]);
+    const domain = toDomain(state.input);
+    if (domain) session.addSource(domain);
+    setInput('');
+  }, [session, state.input, setInput]);
 
   const removeSource = useCallback(
     (domain: string) => {
@@ -89,41 +53,47 @@ export function useSiftFlow() {
 
   const resetSources = useCallback(() => {
     session.resetSources();
-    setState((s) => ({ ...s, input: '', dismissed: [] }));
-  }, [session]);
+    setInput('');
+    state.clearArchive();
+  }, [session, setInput, state]);
 
   const runSearch = useCallback(() => {
     session.runSearch(state.query);
-    setState((s) => ({ ...s, screen: 'live', selected: null, chosen: 0 }));
-  }, [session, state.query]);
+    state.select(null);
+    state.choose(0);
+    setScreen('live');
+  }, [session, state, setScreen]);
 
   const backToSourcesFromLive = useCallback(() => {
     session.cancelSearch();
-    setState((s) => ({ ...s, screen: 'sources', selected: null }));
-  }, [session]);
+    state.select(null);
+    setScreen('sources');
+  }, [session, state, setScreen]);
 
   /** Notes the user has dismissed move to the archive rather than disappearing. */
   const dismissNote = useCallback(
     (id: string) => {
       const note = session.notes.find((n) => n.id === id);
-      if (!note) return;
-      setState((s) => ({ ...s, dismissed: [{ ...note, stamp: `SESSION ${SESSION_CODE}` }, ...s.dismissed] }));
+      if (note) state.archive(note, `SESSION ${SESSION_CODE}`);
     },
-    [session.notes],
+    [session.notes, state],
   );
 
   const openConfirm = useCallback(
     (domain: string) => {
       session.beginConfirm(domain);
-      setState((s) => ({ ...s, screen: 'confirm', chosen: 0, selected: null }));
+      state.choose(0);
+      state.select(null);
+      setScreen('confirm');
     },
-    [session],
+    [session, state, setScreen],
   );
 
   const confirmMatches = useCallback(() => {
     session.confirmCandidate(state.chosen);
-    setState((s) => ({ ...s, screen: 'live', selected: null }));
-  }, [session, state.chosen]);
+    state.select(null);
+    setScreen('live');
+  }, [session, state, setScreen]);
 
   const saveCurrentSearch = useCallback(() => {
     session.saveCurrentSearch(state.query);
