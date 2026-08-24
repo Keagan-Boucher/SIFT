@@ -4,13 +4,24 @@ import pLimit from "p-limit";
 import { logger } from "firebase-functions";
 import { isAllowed, USER_AGENT } from "./fetchPage";
 
-const NAV_TIMEOUT_MS = 20_000;
+const NAV_TIMEOUT_MS = 25_000;
 /**
- * A client-rendered page's own network calls are unpredictable in count and
- * name, so a fixed settle window after "loaded" is simpler and more
- * predictable than trying to guess which request carries the price.
+ * How long to give the page's own network calls a chance to go quiet before
+ * reading it. A results grid built from an XHR/GraphQL call after the shell
+ * loads is common, and there is no reliable way to name which request that
+ * is up front, so this waits for the network to settle instead of guessing.
+ * Sites that never go fully idle (polling, analytics beacons) just use the
+ * whole budget rather than failing, since the wait is not required to succeed.
  */
-const SETTLE_TIMEOUT_MS = 2_000;
+const SETTLE_TIMEOUT_MS = 5_000;
+/**
+ * Product grids are commonly virtualised or lazy-loaded on scroll, so cards
+ * below the fold never render even once the network is idle. A bounded
+ * scroll pass triggers that loading without needing to know the site's own
+ * lazy-load mechanism.
+ */
+const SCROLL_STEP_PX = 900;
+const MAX_SCROLL_PX = 6_000;
 
 /**
  * A real browser costs far more memory and time than a plain fetch, so only
@@ -63,10 +74,22 @@ export async function renderPage(url: string): Promise<RenderResult> {
     let context;
     try {
       const browser = await getBrowser();
-      context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1366, height: 900 } });
+      context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1366, height: 1400 } });
       const page = await context.newPage();
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
-      await page.waitForTimeout(SETTLE_TIMEOUT_MS);
+      // Not required to succeed: a page whose network never quiets down still
+      // gets read once the budget runs out, rather than failing the render.
+      await page.waitForLoadState("networkidle", { timeout: SETTLE_TIMEOUT_MS }).catch(() => {});
+      // A string body, not a closure: this runs in the page's own browser
+      // context, which has no DOM lib available to this project's tsconfig.
+      await page.evaluate(
+        `(async ({ step, max }) => {
+          for (let scrolled = 0; scrolled < max && scrolled < document.body.scrollHeight; scrolled += step) {
+            window.scrollBy(0, step);
+            await new Promise((resolve) => setTimeout(resolve, 150));
+          }
+        })(${JSON.stringify({ step: SCROLL_STEP_PX, max: MAX_SCROLL_PX })})`,
+      );
       return { html: await page.content() };
     } catch (error) {
       logger.warn(`headless render of ${url} failed`, error);
