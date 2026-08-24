@@ -1,7 +1,8 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionBar } from '@/components/sift/ActionBar';
+import { AccountPopup } from '@/components/sift/AccountPopup';
 import { AlertLogPopup } from '@/components/sift/AlertLogPopup';
 import { ListingDetailPopup } from '@/components/sift/ListingDetailPopup';
 import { NoteBanner } from '@/components/sift/NoteBanner';
@@ -32,7 +33,7 @@ export default function SiftAppScreen() {
   useLockLandscape();
   const orientation = useOrientation();
   const flow = useSiftFlow();
-  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, actions } = flow;
+  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, mode, isGuest, accountEmail, actions } = flow;
 
   const ActiveView = VIEW_BY_SCREEN[state.screen];
 
@@ -45,6 +46,17 @@ export default function SiftAppScreen() {
       {showListing && listing && (
         <View style={[styles.popupAnchor, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
           <ListingDetailPopup listing={listing} onClose={actions.closeListing} />
+        </View>
+      )}
+      {showAccount && (
+        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
+          <AccountPopup
+            mode={mode}
+            isGuest={isGuest}
+            email={accountEmail}
+            sessionCode={SESSION_CODE}
+            onClose={actions.toggleAccount}
+          />
         </View>
       )}
       {showArchive && (
@@ -85,7 +97,13 @@ export default function SiftAppScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.landscapeBody}>
-          <Rail screenName={railName} connection={railConnection} sourceCount={sources.length} sessionCode={SESSION_CODE} />
+          <Rail
+            screenName={railName}
+            connection={railConnection}
+            sourceCount={sources.length}
+            sessionCode={SESSION_CODE}
+            onPressSession={actions.toggleAccount}
+          />
           <SavedStrip active={state.screen === 'saved'} hasDrops={hasDrops} onPress={actions.openSaved} />
           <View style={styles.contentCol}>
             {scrollableContent}
@@ -107,7 +125,9 @@ export default function SiftAppScreen() {
               <Text style={[styles.connectionPillText, railConnection === 'LIVE' && styles.connectionPillTextLive]}>{railConnection}</Text>
             </View>
             <SavedPill hasDrops={hasDrops} onPress={actions.openSaved} />
-            <Text style={styles.sessionCode}>{SESSION_CODE}</Text>
+            <Pressable onPress={actions.toggleAccount} accessibilityLabel="Account">
+              <Text style={styles.sessionCode}>{SESSION_CODE}</Text>
+            </Pressable>
           </View>
         </View>
         <View style={styles.contentCol}>

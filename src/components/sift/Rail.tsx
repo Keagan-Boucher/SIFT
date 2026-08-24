@@ -1,5 +1,5 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
@@ -9,10 +9,12 @@ interface RailProps {
   connection?: 'IDLE' | 'LIVE';
   sourceCount?: number;
   sessionCode: string;
+  /** Opens the account panel. The session code is the identity affordance. */
+  onPressSession?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
-export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, sessionCode, style }: RailProps) {
+export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, sessionCode, onPressSession, style }: RailProps) {
   return (
     <View style={[styles.rail, style]}>
       <Svg width={22} height={18} viewBox="0 0 89 71" fill="none">
@@ -48,9 +50,9 @@ export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, session
         ))}
       </View>
 
-      <View style={styles.sessionWrap}>
+      <Pressable style={styles.sessionWrap} onPress={onPressSession} accessibilityLabel="Account">
         <Text style={styles.session}>{sessionCode}</Text>
-      </View>
+      </Pressable>
     </View>
   );
 }

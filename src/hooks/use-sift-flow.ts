@@ -24,6 +24,7 @@ interface FlowState {
   input: string;
   query: string;
   showArchive: boolean;
+  showAccount: boolean;
   chosen: number;
   selected: number | null;
   dismissed: ArchiveEntry[];
@@ -34,6 +35,7 @@ const INITIAL_STATE: FlowState = {
   input: '',
   query: DEFAULT_QUERY,
   showArchive: false,
+  showAccount: false,
   chosen: 0,
   selected: null,
   dismissed: [],
@@ -63,7 +65,8 @@ export function useSiftFlow() {
   const setQuery = useCallback((query: string) => setState((s) => ({ ...s, query })), []);
   const setInput = useCallback((input: string) => setState((s) => ({ ...s, input })), []);
   const chooseRecent = useCallback((name: string) => setState((s) => ({ ...s, query: name })), []);
-  const toggleArchive = useCallback(() => setState((s) => ({ ...s, showArchive: !s.showArchive })), []);
+  const toggleArchive = useCallback(() => setState((s) => ({ ...s, showArchive: !s.showArchive, showAccount: false })), []);
+  const toggleAccount = useCallback(() => setState((s) => ({ ...s, showAccount: !s.showAccount, showArchive: false })), []);
   const selectTile = useCallback((index: number) => setState((s) => ({ ...s, selected: index })), []);
   const closeListing = useCallback(() => setState((s) => ({ ...s, selected: null })), []);
   const chooseCandidate = useCallback((index: number) => setState((s) => ({ ...s, chosen: index })), []);
@@ -130,7 +133,7 @@ export function useSiftFlow() {
   const checkAll = useCallback(() => session.checkAllSaved(), [session]);
 
   const derived = useMemo(() => {
-    const { screen, selected, chosen, dismissed, showArchive } = state;
+    const { screen, selected, chosen, dismissed, showArchive, showAccount } = state;
     const { tiles, sources, saved, recents, candidates, running, complete, history } = session;
 
     const dismissedIds = new Set(dismissed.map((note) => note.id));
@@ -348,6 +351,8 @@ export function useSiftFlow() {
       archiveEmpty: dismissed.length === 0,
       hasDrops: droppedCount > 0,
       showArchive,
+      showAccount,
+      accountEmail: auth.user?.email ?? null,
       sourceCountLabel: String(sources.length).padStart(2, '0'),
       recentCount: String(recents.length).padStart(2, '0'),
       candidateSelectedLabel: selectedCandidate
@@ -373,6 +378,7 @@ export function useSiftFlow() {
     session,
     auth.phase,
     auth.isGuest,
+    auth.user?.email,
     runSearch,
     resetSources,
     backToSourcesFromLive,
@@ -401,6 +407,7 @@ export function useSiftFlow() {
       confirmMatches,
       dismissNote,
       toggleArchive,
+      toggleAccount,
       saveCurrentSearch,
       checkItem,
       checkAll,
