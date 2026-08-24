@@ -1,0 +1,67 @@
+/**
+ * The shapes the screens render. Both the seeded demo dataset and the live
+ * Firestore stream are mapped into these, so no view component knows or cares
+ * which one it is looking at.
+ */
+
+import type { SourceStatus } from '@/components/sift/SourceChip';
+
+export interface SourceView {
+  domain: string;
+  status: SourceStatus;
+  /** Why a source is BLOCKED or failed, surfaced in the alert log. */
+  reason?: string;
+}
+
+export interface TileView {
+  retailer: string;
+  domain: string;
+  tier: 1 | 2 | 3 | 4;
+  /** 1 to 4 badge, derived from match confidence. */
+  confidence: number;
+  price: string;
+  value: number;
+  lowest?: boolean;
+  /** How many candidates this source returned, shown when a match is unconfirmed. */
+  count?: number;
+  /** True when confidence fell below the confirm threshold. */
+  issue?: boolean;
+  title: string;
+  url: string;
+  method: string;
+  stock: string;
+}
+
+export interface CandidateView {
+  title: string;
+  price: string;
+  value: number;
+  /** 0 to 1 match confidence, as scored server-side. */
+  confidence: number;
+  url?: string;
+}
+
+export interface SavedItemView {
+  id: string;
+  name: string;
+  value: number;
+  sources: number;
+  dropTo: number | null;
+  checked: boolean;
+  justDropped: boolean;
+  lastChecked: string | null;
+  wasValue?: number;
+}
+
+export interface NoteView {
+  id: string;
+  kind: 'block' | 'prompt' | 'drop';
+  domain?: string;
+  heading: string;
+  body: string;
+}
+
+export interface RecentView {
+  name: string;
+  meta: string;
+}

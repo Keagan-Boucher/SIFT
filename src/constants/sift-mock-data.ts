@@ -4,60 +4,25 @@
  * No live scraping/backend — this is the same static seed the prototype ships with.
  */
 
-import type { SourceStatus } from '@/components/sift/SourceChip';
+import type {
+  CandidateView,
+  NoteView,
+  RecentView,
+  SavedItemView,
+  SourceView,
+  TileView,
+} from '@/types/view';
 
-export interface MockSource {
-  domain: string;
-  status: SourceStatus;
-}
-
-export interface MockTile {
-  retailer: string;
-  domain: string;
-  tier: 1 | 2 | 3 | 4;
-  confidence: number;
-  price: string;
-  value: number;
-  lowest?: boolean;
-  count?: number;
-  issue?: boolean;
-  title: string;
-  url: string;
-  method: string;
-  stock: string;
-}
-
-export interface MockCandidate {
-  title: string;
-  price: string;
-  value: number;
-  confidence: number;
-}
-
-export interface MockSavedItem {
-  id: string;
-  name: string;
-  value: number;
-  sources: number;
-  dropTo: number | null;
-  checked: boolean;
-  justDropped: boolean;
-  lastChecked: string | null;
-  wasValue?: number;
-}
-
-export interface MockNote {
-  id: string;
-  kind: 'block' | 'prompt' | 'drop';
-  domain?: string;
-  heading: string;
-  body: string;
-}
-
-export interface MockRecent {
-  name: string;
-  meta: string;
-}
+/**
+ * Aliases kept so the seeded dataset reads as itself while sharing the view
+ * model with the live Firestore stream.
+ */
+export type MockSource = SourceView;
+export type MockTile = TileView;
+export type MockCandidate = CandidateView;
+export type MockSavedItem = SavedItemView;
+export type MockNote = NoteView;
+export type MockRecent = RecentView;
 
 export const DEFAULT_QUERY = 'Samsung Galaxy S24 Ultra 256GB';
 
