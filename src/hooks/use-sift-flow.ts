@@ -116,7 +116,10 @@ export function useSiftFlow() {
     const spread =
       sorted.length > 1 ? Math.round(((dearest.value - cheapest.value) / cheapest.value) * 1000) / 10 : 0;
 
+    // Only a robots refusal gates a search. A source that could not be read for
+    // this query is reported but stays, since another query may well work.
     const blockedSources = sources.filter((source) => source.status === 'BLOCKED').length;
+    const failedSources = sources.filter((source) => source.status === 'FAILED').length;
     const openIssues = tiles.filter((tile) => tile.issue).length;
     const selectedTile = selected !== null ? (tiles[selected] ?? null) : null;
     const selectedIssue = !!selectedTile?.issue;
@@ -135,7 +138,9 @@ export function useSiftFlow() {
       sources:
         blockedSources > 0
           ? `${blockedSources} BLOCKED · REMOVE TO CONTINUE`
-          : `${sources.length} SOURCES · ${session.mode === 'demo' ? 'DEMO' : 'IDLE'}`,
+          : failedSources > 0
+            ? `${sources.length} SOURCES · ${failedSources} UNREADABLE`
+            : `${sources.length} SOURCES · ${session.mode === 'demo' ? 'DEMO' : 'IDLE'}`,
       live: running
         ? `${resolved}/${sources.length} RESOLVED · LIVE`
         : openIssues > 0
@@ -305,6 +310,7 @@ export function useSiftFlow() {
       sorted,
       spread,
       blockedSources,
+      failedSources,
       openIssues,
       selectedTile,
       railName: railName[screen],

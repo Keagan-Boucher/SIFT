@@ -3,8 +3,10 @@ import { logger } from "firebase-functions";
 import type { ResolutionMethod, ScoredCandidate, SourceStatus } from "../types";
 import { BlockedByRobotsError, describeFetchFailure, fetchPage, normaliseDomain } from "../net/fetchPage";
 import { planResolution, acceptResolution } from "../resolution";
+import { looksLikeNoResults } from "../resolution/commonPaths";
 import { recordOutcome } from "../resolution/registry";
 import { extractCandidates } from "../extraction/candidates";
+import { tokenize } from "../matching/score";
 
 /**
  * Each candidate URL costs a fetch, and the per-host limiter runs them one at a
@@ -37,6 +39,18 @@ export interface ScrapeFailure {
 }
 
 export type ScrapeOutcome = ScrapeSuccess | ScrapeFailure;
+
+/**
+ * Whether the product the user asked for appears on the page at all. If none of
+ * the query's own words are anywhere in the text, the results were not in the
+ * HTML we were served: the page lists categories and filters, and the products
+ * themselves arrive later via JavaScript.
+ */
+function pageMentionsQuery(html: string, query: string): boolean {
+  const text = html.toLowerCase();
+  const tokens = tokenize(query);
+  return tokens.length === 0 || tokens.some((token) => text.includes(token));
+}
 
 /**
  * A search URL that returns the homepage again is not a search page. This
@@ -92,6 +106,8 @@ export async function scrapeSource(
     let lastMethod: ResolutionMethod | undefined;
     let fetchedAny = false;
     let matchedNothing = false;
+    let productAbsentFromPage = false;
+    let emptyResultSet = false;
     let attempted = 0;
     let refused = 0;
 
@@ -115,11 +131,17 @@ export async function scrapeSource(
       if (isSamePageAsHomepage(html, plan.homepage)) continue;
       fetchedAny = true;
 
+      if (looksLikeNoResults(html)) {
+        emptyResultSet = true;
+        continue;
+      }
+
       const candidates = extractCandidates(html, resolution.listingUrl, query);
       if (candidates.length === 0) continue;
 
       if (candidates[0].matchConfidence < MIN_ACCEPTABLE_MATCH) {
         matchedNothing = true;
+        if (!pageMentionsQuery(html, query)) productAbsentFromPage = true;
         continue;
       }
 
@@ -146,13 +168,17 @@ export async function scrapeSource(
       ok: false,
       status: "FAILED",
       method: lastMethod,
-      reason: matchedNothing
-        ? "The search page carried prices, but none of them matched this product"
-        : plan.clientRendered
-          ? "The site builds its pages in the browser, so the HTML carries no prices"
-          : fetchedAny
-            ? "Search pages were reached but carried no readable prices"
-            : "No search page could be reached",
+      reason: emptyResultSet
+        ? "The site's own search found nothing for this product"
+        : productAbsentFromPage
+        ? "The search page never mentions this product, so its results are loaded in the browser rather than sent as HTML"
+        : matchedNothing
+          ? "The search page listed prices, but none of them were this product"
+          : plan.clientRendered
+            ? "The site builds its pages in the browser, so the HTML carries no prices"
+            : fetchedAny
+              ? "The search page carried no prices in its HTML, so they are drawn in the browser"
+              : "No search page could be reached",
     };
   } catch (error) {
     if (error instanceof BlockedByRobotsError) {

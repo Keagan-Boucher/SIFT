@@ -17,13 +17,15 @@ const TIER_LABEL: Record<1 | 2 | 3 | 4, string> = {
 };
 
 /**
- * The UI only draws three source states. RESOLVING is still in flight so it
- * reads as PENDING, and a source that failed for any reason other than robots
- * still cannot be compared, so it reads as BLOCKED with the reason attached.
+ * BLOCKED and FAILED are kept apart deliberately. BLOCKED means robots.txt
+ * refused us, which will not change and gates the search. FAILED means this
+ * query could not be read off that site, which another query might manage, so
+ * it is reported without standing in the way. RESOLVING is still in flight.
  */
 function sourceStatus(status: SourceStateDoc['status']): SourceStatus {
   if (status === 'RESOLVED') return 'RESOLVED';
-  if (status === 'BLOCKED' || status === 'FAILED') return 'BLOCKED';
+  if (status === 'BLOCKED') return 'BLOCKED';
+  if (status === 'FAILED') return 'FAILED';
   return 'PENDING';
 }
 
@@ -135,7 +137,12 @@ export function toSourceNotes(search: SearchDoc | null): NoteView[] {
       kind: 'block' as const,
       domain: state.domain,
       heading: state.status === 'BLOCKED' ? 'ROBOTS_BLOCKED' : 'EXTRACTION_FAILED',
-      body: `${state.domain}: ${state.reason ?? 'could not be scraped'}. Remove this source to continue.`,
+      // The remedy differs: a robots refusal will not change, so the source has
+      // to go. A failed read might work for a different query, so it stays.
+      body:
+        state.status === 'BLOCKED'
+          ? `${state.domain}: ${state.reason ?? 'refuses automated access'}. Remove this source to continue.`
+          : `${state.domain}: ${state.reason ?? 'could not be read'}. Other sources still compared.`,
     }));
 }
 

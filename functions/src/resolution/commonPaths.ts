@@ -45,3 +45,24 @@ const CLIENT_RENDER_MARKERS = [
 export function looksClientRendered(html: string): boolean {
   return CLIENT_RENDER_MARKERS.some((marker) => marker.test(html));
 }
+
+/**
+ * Phrases a storefront uses when its search genuinely found nothing. Worth
+ * detecting, because "this shop does not stock it" and "we could not read the
+ * page" are different answers and only one of them is the scraper's fault.
+ */
+const NO_RESULTS_PATTERNS = [
+  /no products were found/i,
+  /no results (were )?found/i,
+  /0 results/i,
+  /your search .{0,40}did not match/i,
+  /we could(n.t| not) find any/i,
+  /nothing (was )?found/i,
+  /no matches found/i,
+  /sorry, no products/i,
+];
+
+/** True when the page is a search-results page reporting an empty result set. */
+export function looksLikeNoResults(html: string): boolean {
+  return NO_RESULTS_PATTERNS.some((pattern) => pattern.test(html));
+}

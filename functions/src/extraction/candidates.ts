@@ -155,11 +155,18 @@ function candidatesFromCards($: cheerio.CheerioAPI, baseUrl: string): RawCandida
     const url = absolute(link.attr("href"), baseUrl);
     if (!url || seenUrls.has(url)) return;
 
-    const title =
+    const title = (
       card.find("h1, h2, h3, h4, [itemprop='name']").first().text().trim() ||
       link.attr("title")?.trim() ||
-      link.text().trim();
+      link.text().trim()
+    ).replace(/\s+/g, " ");
     if (!title) return;
+
+    // Retail navigation is full of price-bracket links: "Gaming Chair Under
+    // R4000", "Headsets Above R2k". They look exactly like a product with a
+    // price until you notice the price is part of the name rather than attached
+    // to it, so a title that contains its own price is a category, not a product.
+    if (title.replace(/\s+/g, " ").includes(priceText.replace(/\s+/g, " "))) return;
 
     const price = parsePrice(priceText);
     if (Number.isNaN(price) || price <= 0) return;

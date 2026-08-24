@@ -179,3 +179,20 @@ test("extractCandidates reads a price split across elements, ignoring the struck
   assert.equal(candidates[0].currency, "GBP");
   assert.equal(candidates[0].url, "https://scrapeme.live/shop/Charjabug/");
 });
+
+test("extractCandidates ignores price-bracket category links", () => {
+  // Real evetech.co.za navigation. These look like products with prices until
+  // you notice the price is part of the name rather than attached to it.
+  const html = `<!doctype html><html><body><nav>
+      <a href="/buy-gaming-chair-under-r4000/x/1568">Gaming Chair Under R4000</a>
+      <a href="/office-chairs-above-r4000/x/1931">Office Chairs Above R4000</a>
+    </nav>
+    <ul><li><a href="/p/ram-kit">Corsair Vengeance 32GB DDR4 Kit</a><span class="price">R2 450</span></li></ul>
+    </body></html>`;
+
+  const candidates = extractCandidates(html, "https://www.evetech.co.za/search?q=ddr4", "Corsair Vengeance 32GB DDR4");
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].title, "Corsair Vengeance 32GB DDR4 Kit");
+  assert.equal(candidates[0].price, 2450);
+});
