@@ -15,7 +15,7 @@ export interface ResolutionResult {
   blocked?: boolean;
 }
 
-export type ExtractionTier = 1 | 2 | 3 | 4;
+export type ExtractionTier = 1 | 2 | 3 | 4 | 5;
 
 export interface ExtractionResult {
   tier: ExtractionTier;
