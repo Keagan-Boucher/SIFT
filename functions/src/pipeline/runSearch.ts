@@ -5,11 +5,9 @@ import { logger } from "firebase-functions";
 import pLimit from "p-limit";
 
 import type { ScoredCandidate, SearchStatus, SourceState } from "../types";
-import { BlockedByRobotsError, fetchPage, normaliseDomain } from "../net/fetchPage";
-import { resolveDomain } from "../resolution";
-import { recordOutcome } from "../resolution/registry";
-import { extractCandidates } from "../extraction/candidates";
+import { normaliseDomain } from "../net/fetchPage";
 import { CONFIRM_THRESHOLD, confidenceBadge } from "../matching/score";
+import { scrapeSource } from "./scrapeSource";
 
 /** How many sources are worked at once. Each host is separately limited to one. */
 const SOURCE_CONCURRENCY = 4;
@@ -86,9 +84,8 @@ async function writeListing(
 }
 
 /**
- * The whole pipeline for one source: resolve which page holds the listing,
- * fetch it, extract and score every candidate on it, and write the best one.
- * Failures are per-source, so one dead retailer never sinks a search.
+ * Runs one source and writes its best listing. Failures are per-source, so one
+ * dead retailer never sinks a search.
  */
 async function processSource(
   db: Firestore,
@@ -97,36 +94,14 @@ async function processSource(
   domain: string,
   userSearchUrl: string | undefined,
 ): Promise<SourceState> {
-  try {
-    const resolution = await resolveDomain(domain, query, userSearchUrl);
-    if (!resolution) return { domain, status: "FAILED", reason: "No search page could be resolved" };
-    if (resolution.blocked) return { domain, status: "BLOCKED", reason: "robots.txt refuses automated access" };
-
-    const html = await fetchPage(resolution.listingUrl);
-    if (!html) {
-      await recordOutcome(domain, false);
-      return { domain, status: "FAILED", method: resolution.method, reason: "Search page could not be fetched" };
-    }
-
-    const candidates = extractCandidates(html, resolution.listingUrl, query);
-    if (candidates.length === 0) {
-      await recordOutcome(domain, false);
-      // The known limitation: client-rendered pages return HTML with no prices.
-      return { domain, status: "FAILED", method: resolution.method, reason: "No prices in the page HTML" };
-    }
-
-    const [best, ...rest] = candidates;
-    await writeListing(db, searchId, domain, best, rest);
-    await recordOutcome(domain, true);
-
-    return { domain, status: "RESOLVED", method: resolution.method };
-  } catch (error) {
-    if (error instanceof BlockedByRobotsError) {
-      return { domain, status: "BLOCKED", reason: "robots.txt refuses automated access" };
-    }
-    logger.error(`source ${domain} failed`, error);
-    return { domain, status: "FAILED", reason: "Unexpected error while scraping" };
+  const outcome = await scrapeSource(query, domain, userSearchUrl);
+  if (!outcome.ok) {
+    return { domain, status: outcome.status, method: outcome.method, reason: outcome.reason };
   }
+
+  const [best, ...rest] = outcome.candidates;
+  await writeListing(db, searchId, domain, best, rest);
+  return { domain, status: "RESOLVED", method: outcome.method };
 }
 
 /**
