@@ -53,7 +53,8 @@ export const auth: Auth =
     : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
 
 export const db = getFirestore(app);
-export const functions = getFunctions(app);
+/** Must match setGlobalOptions in functions/src/index.ts, or callables 404. */
+export const functions = getFunctions(app, 'europe-west1');
 
 if (useEmulator) {
   const host = emulatorHost();
