@@ -26,11 +26,12 @@ export const SiftColors = {
   onLight: '#0E1012',
 } as const;
 
-export const SiftTier: Record<1 | 2 | 3 | 4 | 'unresolved', string> = {
+export const SiftTier: Record<1 | 2 | 3 | 4 | 5 | 'unresolved', string> = {
   1: SiftColors.mint,
   2: SiftColors.mint,
   3: SiftColors.paperHi,
   4: SiftColors.ember,
+  5: SiftColors.current,
   unresolved: SiftColors.graphite,
 };
 

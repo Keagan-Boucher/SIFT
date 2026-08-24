@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SiftColors, SiftSpacing, SiftTier } from '@/constants/sift-theme';
 
 interface HeaderStripProps {
-  tier?: 1 | 2 | 3 | 4 | 'unresolved';
+  tier?: 1 | 2 | 3 | 4 | 5 | 'unresolved';
   glyph?: string;
   confidence?: number;
   style?: StyleProp<ViewStyle>;

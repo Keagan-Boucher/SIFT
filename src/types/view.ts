@@ -16,7 +16,7 @@ export interface SourceView {
 export interface TileView {
   retailer: string;
   domain: string;
-  tier: 1 | 2 | 3 | 4;
+  tier: 1 | 2 | 3 | 4 | 5;
   /** 1 to 4 badge, derived from match confidence. */
   confidence: number;
   price: string;

@@ -9,11 +9,12 @@ import type { CandidateDoc, ListingDoc, SavedSearchDoc, SearchDoc, SourceStateDo
 import type { CandidateView, NoteView, SavedItemView, SourceView, TileView } from '@/types/view';
 import type { SourceStatus } from '@/components/sift/SourceChip';
 
-const TIER_LABEL: Record<1 | 2 | 3 | 4, string> = {
+const TIER_LABEL: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: 'T1 · OFFICIAL API',
   2: 'T2 · INTERNAL JSON',
   3: 'T3 · STRUCTURED DATA',
   4: 'T4 · HEURISTIC HTML',
+  5: 'T5 · HEADLESS RENDER',
 };
 
 /**

@@ -9,7 +9,7 @@ import { HeaderStrip } from './HeaderStrip';
 import { Tag } from './Tag';
 
 interface ResultTileProps {
-  tier?: 1 | 2 | 3 | 4;
+  tier?: 1 | 2 | 3 | 4 | 5;
   confidence?: number;
   price: string;
   retailer: string;

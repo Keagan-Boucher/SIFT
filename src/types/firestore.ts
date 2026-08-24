@@ -44,7 +44,7 @@ export interface CandidateDoc {
   currency: string;
   inStock: boolean;
   matchConfidence: number;
-  tier: 1 | 2 | 3 | 4;
+  tier: 1 | 2 | 3 | 4 | 5;
 }
 
 export interface ListingDoc {
@@ -59,7 +59,7 @@ export interface ListingDoc {
   matchConfidence: number;
   /** 1 to 4, what the tile renders. */
   confidenceBadge: 1 | 2 | 3 | 4;
-  extractionTier: 1 | 2 | 3 | 4;
+  extractionTier: 1 | 2 | 3 | 4 | 5;
   /** True when confidence fell below the threshold and the user should pick. */
   needsConfirmation: boolean;
   confirmedByUser?: boolean;
