@@ -96,7 +96,13 @@ async function processSource(
 ): Promise<SourceState> {
   const outcome = await scrapeSource(query, domain, userSearchUrl);
   if (!outcome.ok) {
-    return { domain, status: outcome.status, method: outcome.method, reason: outcome.reason };
+    // A source that failed before resolving has no method to report.
+    return {
+      domain,
+      status: outcome.status,
+      reason: outcome.reason,
+      ...(outcome.method ? { method: outcome.method } : {}),
+    };
   }
 
   const [best, ...rest] = outcome.candidates;

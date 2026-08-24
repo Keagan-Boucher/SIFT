@@ -1,7 +1,7 @@
 import { logger } from "firebase-functions";
 
 import type { ResolutionMethod, ScoredCandidate, SourceStatus } from "../types";
-import { BlockedByRobotsError, fetchPage, normaliseDomain } from "../net/fetchPage";
+import { BlockedByRobotsError, describeFetchFailure, fetchPage, normaliseDomain } from "../net/fetchPage";
 import { planResolution, acceptResolution } from "../resolution";
 import { recordOutcome } from "../resolution/registry";
 import { extractCandidates } from "../extraction/candidates";
@@ -73,7 +73,11 @@ export async function scrapeSource(
       return { ok: false, status: "BLOCKED", reason: "robots.txt refuses automated access" };
     }
     if (plan.unreachable) {
-      return { ok: false, status: "FAILED", reason: "The site could not be reached" };
+      return {
+        ok: false,
+        status: "FAILED",
+        reason: plan.homepageFetch ? describeFetchFailure(plan.homepageFetch) : "The site could not be reached",
+      };
     }
     if (plan.candidates.length === 0) {
       return {

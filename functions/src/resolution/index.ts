@@ -1,7 +1,8 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import type { ResolutionResult } from "../types";
-import { BlockedByRobotsError, fetchPage, normaliseDomain, originFor } from "../net/fetchPage";
+import { BlockedByRobotsError, fetchPageDetailed, normaliseDomain, originFor } from "../net/fetchPage";
+import type { FetchResult } from "../net/fetchPage";
 import { resolveFromRegistry, recordTemplate } from "./registry";
 import { discoverSearchTemplate } from "./formDiscovery";
 import { fingerprintPlatform } from "./platformPattern";
@@ -27,6 +28,8 @@ export interface ResolutionPlan {
   clientRendered: boolean;
   /** The homepage HTML, kept so the caller does not fetch it twice. */
   homepage: string | null;
+  /** How the homepage fetch went, so a failure can name the actual cause. */
+  homepageFetch: FetchResult | null;
 }
 
 /**
@@ -72,6 +75,7 @@ export async function planResolution(
     unreachable: false,
     clientRendered: false,
     homepage: null,
+    homepageFetch: null,
   };
 
   if (userSearchUrl) {
@@ -99,9 +103,9 @@ export async function planResolution(
   if (fromRegistry) candidates.push(fromRegistry);
 
   const origin = originFor(domain);
-  let homepage: string | null;
+  let fetched: FetchResult;
   try {
-    homepage = await fetchPage(origin);
+    fetched = await fetchPageDetailed(origin);
   } catch (error) {
     if (error instanceof BlockedByRobotsError) {
       logger.info(`robots.txt refused ${domain}`);
@@ -110,7 +114,10 @@ export async function planResolution(
     throw error;
   }
 
-  if (!homepage) return { ...empty, candidates, unreachable: candidates.length === 0 };
+  const homepage = fetched.html;
+  if (!homepage) {
+    return { ...empty, candidates, unreachable: candidates.length === 0, homepageFetch: fetched };
+  }
 
   const formTemplate = discoverSearchTemplate(homepage, origin);
   if (formTemplate && validateTemplate(formTemplate)) {
@@ -147,7 +154,13 @@ export async function planResolution(
     return true;
   });
 
-  return { ...empty, candidates: deduped, clientRendered: looksClientRendered(homepage), homepage };
+  return {
+    ...empty,
+    candidates: deduped,
+    clientRendered: looksClientRendered(homepage),
+    homepage,
+    homepageFetch: fetched,
+  };
 }
 
 /** Records a validated template so the next search on this domain skips straight to method A. */

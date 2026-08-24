@@ -91,13 +91,21 @@ export async function isAllowed(url: string): Promise<boolean> {
   return robots ? robots.isAllowed(url, USER_AGENT) !== false : true;
 }
 
+export interface FetchResult {
+  html: string | null;
+  /** HTTP status, or null when the request never got a response. */
+  status: number | null;
+  /** True when the request timed out or the connection failed. */
+  networkError: boolean;
+}
+
 /**
  * The only outbound HTTP path in the scraper. Checks robots.txt, queues behind
- * the per-host limiter, applies a timeout, and returns the page HTML.
- * Returns null on a non-OK response or a non-HTML body; throws
- * BlockedByRobotsError when the site has explicitly refused.
+ * the per-host limiter, applies a timeout, and reports what happened.
+ * Throws BlockedByRobotsError when the site has explicitly refused, including
+ * after a redirect to a host with a stricter policy.
  */
-export async function fetchPage(url: string): Promise<string | null> {
+export async function fetchPageDetailed(url: string): Promise<FetchResult> {
   if (!(await isAllowed(url))) throw new BlockedByRobotsError(url);
 
   const host = new URL(url).host;
@@ -112,7 +120,7 @@ export async function fetchPage(url: string): Promise<string | null> {
           "Accept-Language": "en-ZA,en;q=0.9",
         });
       } catch {
-        return null;
+        return { html: null, status: null, networkError: true };
       }
 
       // A redirect can land on a different host whose robots.txt is stricter
@@ -122,13 +130,37 @@ export async function fetchPage(url: string): Promise<string | null> {
         throw new BlockedByRobotsError(response.url);
       }
 
-      if (!response.ok) return null;
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType && !/text\/html|application\/xhtml|application\/json|text\/plain/.test(contentType)) return null;
+      if (!response.ok) return { html: null, status: response.status, networkError: false };
 
-      return response.text();
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType && !/text\/html|application\/xhtml|application\/json|text\/plain/.test(contentType)) {
+        return { html: null, status: response.status, networkError: false };
+      }
+
+      return { html: await response.text(), status: response.status, networkError: false };
     }),
   );
+}
+
+/** The common case: the page HTML, or null if it could not be read. */
+export async function fetchPage(url: string): Promise<string | null> {
+  return (await fetchPageDetailed(url)).html;
+}
+
+/**
+ * Turns a failed fetch into something worth showing a user. Retailers commonly
+ * serve 403 or 429 to traffic from cloud IP ranges, which looks identical to
+ * being down unless the status is reported.
+ */
+export function describeFetchFailure(result: FetchResult): string {
+  if (result.networkError) return "The site did not respond in time";
+  if (result.status === 403 || result.status === 401) {
+    return "The site refused the request (HTTP 403). Retailers often block traffic from cloud servers";
+  }
+  if (result.status === 429) return "The site rate-limited the request (HTTP 429)";
+  if (result.status === 404) return "The page was not found (HTTP 404)";
+  if (result.status !== null) return `The site returned HTTP ${result.status}`;
+  return "The site could not be reached";
 }
 
 /** Normalises user input ("https://Takealot.com/foo") down to a bare host. */

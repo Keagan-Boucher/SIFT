@@ -1,7 +1,16 @@
 import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { setGlobalOptions } from "firebase-functions/v2";
 
 initializeApp();
+
+/**
+ * Several document fields are genuinely optional: a source that failed before
+ * resolving has no method, a listing that was never confirmed has no confirmer.
+ * Without this the admin SDK rejects the whole write rather than omitting the
+ * field, which is never what is wanted here.
+ */
+getFirestore().settings({ ignoreUndefinedProperties: true });
 
 /**
  * Co-located with Firestore in europe-west1. A Firestore trigger has to run in

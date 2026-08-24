@@ -34,6 +34,31 @@ function parsePrice(text: string): number {
   return Number(text.replace(/[^0-9.]/g, ""));
 }
 
+/**
+ * Retailers routinely split a price across elements, so the symbol and the
+ * number are never in the same text node:
+ *   <bdi><span class="currencySymbol">£</span>76.00</bdi>
+ * Reading only an element's own text therefore finds nothing. This reads the
+ * element's full text instead, and keeps only the innermost element that
+ * carries a price, so ancestors do not register as duplicates of their children.
+ *
+ * Elements inside <del> or <s> are skipped: on a sale listing that is the old
+ * price, and taking it would report a discount that is no longer on offer.
+ */
+function priceInElement($: cheerio.CheerioAPI, el: cheerio.Cheerio<AnyNode>): string | null {
+  if (el.is("del, s") || el.parents("del, s").length > 0) return null;
+
+  const match = PRICE_PATTERN.exec(el.text().replace(/\s+/g, " "));
+  if (!match) return null;
+
+  const childCarriesPrice = el
+    .children()
+    .toArray()
+    .some((child) => PRICE_PATTERN.test($(child).text().replace(/\s+/g, " ")));
+
+  return childCarriesPrice ? null : match[0];
+}
+
 function absolute(href: string | undefined, baseUrl: string): string | null {
   if (!href) return null;
   try {
@@ -111,12 +136,8 @@ function candidatesFromCards($: cheerio.CheerioAPI, baseUrl: string): RawCandida
     if (found.length >= MAX_CANDIDATES) return false;
 
     const el = $(node);
-    const ownText = el
-      .contents()
-      .filter((__, child) => child.type === "text")
-      .text();
-    const priceMatch = PRICE_PATTERN.exec(ownText);
-    if (!priceMatch) return;
+    const priceText = priceInElement($, el);
+    if (!priceText) return;
 
     let card: cheerio.Cheerio<AnyNode> = el;
     let link: cheerio.Cheerio<AnyNode> | null = null;
@@ -140,14 +161,14 @@ function candidatesFromCards($: cheerio.CheerioAPI, baseUrl: string): RawCandida
       link.text().trim();
     if (!title) return;
 
-    const price = parsePrice(priceMatch[0]);
+    const price = parsePrice(priceText);
     if (Number.isNaN(price) || price <= 0) return;
 
     seenUrls.add(url);
     found.push({
       title,
       price,
-      currency: currencyFromText(priceMatch[0]),
+      currency: currencyFromText(priceText),
       url,
       inStock: !/out of stock|sold out|unavailable/i.test(card.text()),
       tier: 4,

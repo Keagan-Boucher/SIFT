@@ -157,3 +157,25 @@ test("extractCandidates does not read a model number or shorthand as a price", (
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].price, 2199);
 });
+
+test("extractCandidates reads a price split across elements, ignoring the struck-out old price", () => {
+  // WooCommerce, Shopify and Magento all render the currency symbol in its own
+  // element, so the symbol and the number are never in one text node. A sale
+  // also renders the former price in <del>, which must not be the one reported.
+  const html = `<!doctype html><html><body><ul class="products">
+      <li class="product">
+        <a href="/shop/Charjabug/">Charjabug</a>
+        <span class="price">
+          <del><span class="amount"><bdi><span class="sym">&#163;</span>99.00</bdi></span></del>
+          <ins><span class="amount"><bdi><span class="sym">&#163;</span>76.00</bdi></span></ins>
+        </span>
+      </li>
+    </ul></body></html>`;
+
+  const candidates = extractCandidates(html, "https://scrapeme.live/?s=char", "Charjabug");
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].price, 76);
+  assert.equal(candidates[0].currency, "GBP");
+  assert.equal(candidates[0].url, "https://scrapeme.live/shop/Charjabug/");
+});
