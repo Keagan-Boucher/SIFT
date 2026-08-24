@@ -95,8 +95,38 @@ export interface FetchResult {
   html: string | null;
   /** HTTP status, or null when the request never got a response. */
   status: number | null;
-  /** True when the request timed out or the connection failed. */
+  /** True when the request never completed at the network level. */
   networkError: boolean;
+  /**
+   * Which kind of network failure. "Could not connect" and "timed out" send a
+   * user in completely different directions, and a mistyped domain is a third
+   * thing again, so they are not collapsed into one message.
+   */
+  failure?: "timeout" | "dns" | "refused" | "tls" | "unknown";
+}
+
+/**
+ * Node wraps the real cause: `fetch` rejects with a generic TypeError whose
+ * `cause` carries the errno code that actually says what went wrong.
+ */
+function classifyFetchError(error: unknown): NonNullable<FetchResult["failure"]> {
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) return "timeout";
+
+  const cause = (error as { cause?: { code?: string; message?: string } })?.cause;
+  const code = cause?.code ?? (error as { code?: string })?.code ?? "";
+
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || code === "EAI_NODATA") return "dns";
+  if (code === "ECONNREFUSED" || code === "ECONNRESET" || code === "EHOSTUNREACH" || code === "ENETUNREACH") {
+    return "refused";
+  }
+  if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT" || code === "UND_ERR_HEADERS_TIMEOUT") {
+    return "timeout";
+  }
+  if (code.startsWith("ERR_TLS") || code.startsWith("CERT_") || code.startsWith("UNABLE_TO_")
+      || code === "DEPTH_ZERO_SELF_SIGNED_CERT" || code === "EPROTO") {
+    return "tls";
+  }
+  return "unknown";
 }
 
 /**
@@ -119,8 +149,8 @@ export async function fetchPageDetailed(url: string): Promise<FetchResult> {
           Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
           "Accept-Language": "en-ZA,en;q=0.9",
         });
-      } catch {
-        return { html: null, status: null, networkError: true };
+      } catch (error) {
+        return { html: null, status: null, networkError: true, failure: classifyFetchError(error) };
       }
 
       // A redirect can land on a different host whose robots.txt is stricter
@@ -153,12 +183,26 @@ export async function fetchPage(url: string): Promise<string | null> {
  * being down unless the status is reported.
  */
 export function describeFetchFailure(result: FetchResult): string {
-  if (result.networkError) return "The site did not respond in time";
+  if (result.networkError) {
+    switch (result.failure) {
+      case "dns":
+        return "That domain does not resolve. Check the spelling";
+      case "refused":
+        return "The site refused the connection. Smaller hosts sometimes block foreign or datacentre traffic outright";
+      case "tls":
+        return "The site's security certificate could not be verified";
+      case "timeout":
+        return "The site did not respond in time";
+      default:
+        return "The connection to the site failed";
+    }
+  }
   if (result.status === 403 || result.status === 401) {
-    return "The site refused the request (HTTP 403). Retailers often block traffic from cloud servers";
+    return "The site refused the request (HTTP 403), usually a bot filter such as Cloudflare rejecting datacentre traffic";
   }
   if (result.status === 429) return "The site rate-limited the request (HTTP 429)";
   if (result.status === 404) return "The page was not found (HTTP 404)";
+  if (result.status === 503) return "The site is unavailable or behind a bot check (HTTP 503)";
   if (result.status !== null) return `The site returned HTTP ${result.status}`;
   return "The site could not be reached";
 }
@@ -179,4 +223,18 @@ const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 export function originFor(domain: string): string {
   const host = normaliseDomain(domain);
   return `${LOOPBACK.test(host) ? "http" : "https"}://${host}`;
+}
+
+/**
+ * The www form of a domain. Small hosts often serve only one of the two names
+ * reliably, so it is worth having both to try. No attempt is made to guess
+ * whether www exists: the caller only uses this after the bare name failed, and
+ * a name that does not resolve simply fails too. Loopback has no www.
+ *
+ * Counting labels to detect a subdomain does not work here, since a .co.za
+ * domain has three of them.
+ */
+export function wwwOriginFor(domain: string): string | null {
+  const host = normaliseDomain(domain);
+  return LOOPBACK.test(host) ? null : `https://www.${host}`;
 }

@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import type { ResolutionResult } from "../types";
-import { BlockedByRobotsError, fetchPageDetailed, normaliseDomain, originFor } from "../net/fetchPage";
+import { BlockedByRobotsError, fetchPageDetailed, normaliseDomain, originFor, wwwOriginFor } from "../net/fetchPage";
 import type { FetchResult } from "../net/fetchPage";
 import { resolveFromRegistry, recordTemplate } from "./registry";
 import { discoverSearchTemplate } from "./formDiscovery";
@@ -102,10 +102,23 @@ export async function planResolution(
   const fromRegistry = await resolveFromRegistry(domain, query);
   if (fromRegistry) candidates.push(fromRegistry);
 
-  const origin = originFor(domain);
+  // Small hosts often serve only one of the apex and the www name properly, and
+  // which one varies, so a network-level failure on the first is worth retrying
+  // on the other before giving up on the domain.
+  const bareOrigin = originFor(domain);
+  const wwwOrigin = wwwOriginFor(domain);
+
+  let origin = bareOrigin;
   let fetched: FetchResult;
   try {
-    fetched = await fetchPageDetailed(origin);
+    fetched = await fetchPageDetailed(bareOrigin);
+    if (!fetched.html && fetched.networkError && wwwOrigin) {
+      const viaWww = await fetchPageDetailed(wwwOrigin);
+      if (viaWww.html) {
+        origin = wwwOrigin;
+        fetched = viaWww;
+      }
+    }
   } catch (error) {
     if (error instanceof BlockedByRobotsError) {
       logger.info(`robots.txt refused ${domain}`);

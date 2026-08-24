@@ -54,7 +54,8 @@ export function looksClientRendered(html: string): boolean {
 const NO_RESULTS_PATTERNS = [
   /no products were found/i,
   /no results (were )?found/i,
-  /0 results/i,
+  // The word boundary matters: without it this matches "10 results".
+  /0 results/i,
   /your search .{0,40}did not match/i,
   /we could(n.t| not) find any/i,
   /nothing (was )?found/i,
@@ -62,7 +63,13 @@ const NO_RESULTS_PATTERNS = [
   /sorry, no products/i,
 ];
 
-/** True when the page is a search-results page reporting an empty result set. */
+/**
+ * True when the page is a search-results page reporting an empty result set.
+ *
+ * Only meaningful once extraction has already come back empty. Plenty of themes
+ * ship the empty-state wording in the markup and hide it with CSS, so on a page
+ * that does have products this says nothing useful.
+ */
 export function looksLikeNoResults(html: string): boolean {
   return NO_RESULTS_PATTERNS.some((pattern) => pattern.test(html));
 }

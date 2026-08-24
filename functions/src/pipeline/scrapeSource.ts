@@ -1,7 +1,8 @@
 import { logger } from "firebase-functions";
 
 import type { ResolutionMethod, ScoredCandidate, SourceStatus } from "../types";
-import { BlockedByRobotsError, describeFetchFailure, fetchPage, normaliseDomain } from "../net/fetchPage";
+import { BlockedByRobotsError, describeFetchFailure, fetchPageDetailed, normaliseDomain } from "../net/fetchPage";
+import type { FetchResult } from "../net/fetchPage";
 import { planResolution, acceptResolution } from "../resolution";
 import { looksLikeNoResults } from "../resolution/commonPaths";
 import { recordOutcome } from "../resolution/registry";
@@ -110,14 +111,17 @@ export async function scrapeSource(
     let emptyResultSet = false;
     let attempted = 0;
     let refused = 0;
+    // Kept so a total failure can report what actually happened on the last
+    // attempt, rather than a generic "could not be reached".
+    let lastFailure: FetchResult | null = null;
 
     for (const resolution of plan.candidates.slice(0, MAX_CANDIDATE_URLS)) {
       lastMethod = resolution.method;
       attempted++;
 
-      let html: string | null;
+      let attempt: FetchResult;
       try {
-        html = await fetchPage(resolution.listingUrl);
+        attempt = await fetchPageDetailed(resolution.listingUrl);
       } catch (error) {
         // Plenty of sites allow the homepage but disallow /search. That refuses
         // one guess, not the whole domain, so the cascade carries on.
@@ -127,17 +131,21 @@ export async function scrapeSource(
         }
         throw error;
       }
-      if (!html) continue;
+      const html = attempt.html;
+      if (!html) {
+        lastFailure = attempt;
+        continue;
+      }
       if (isSamePageAsHomepage(html, plan.homepage)) continue;
       fetchedAny = true;
 
-      if (looksLikeNoResults(html)) {
-        emptyResultSet = true;
+      const candidates = extractCandidates(html, resolution.listingUrl, query);
+      if (candidates.length === 0) {
+        // Consulted only now: a theme that ships hidden empty-state wording
+        // would otherwise mask a page that does have products on it.
+        if (looksLikeNoResults(html)) emptyResultSet = true;
         continue;
       }
-
-      const candidates = extractCandidates(html, resolution.listingUrl, query);
-      if (candidates.length === 0) continue;
 
       if (candidates[0].matchConfidence < MIN_ACCEPTABLE_MATCH) {
         matchedNothing = true;
@@ -178,7 +186,9 @@ export async function scrapeSource(
             ? "The site builds its pages in the browser, so the HTML carries no prices"
             : fetchedAny
               ? "The search page carried no prices in its HTML, so they are drawn in the browser"
-              : "No search page could be reached",
+              : lastFailure
+                ? `Its search pages could not be read. ${describeFetchFailure(lastFailure)}`
+                : "No search page could be reached",
     };
   } catch (error) {
     if (error instanceof BlockedByRobotsError) {

@@ -192,7 +192,8 @@ test("scrapeSource reports failure when every candidate url is a dead end", asyn
 
   assert.equal(outcome.ok, false);
   if (outcome.ok) return;
-  assert.match(outcome.reason, /no readable prices|No search page could be reached/);
+  // The reason now carries the actual cause of the last attempt.
+  assert.match(outcome.reason, /no readable prices|could not be read|HTTP 404/);
 });
 
 test("scrapeSource obeys the robots.txt of the host it is redirected to", async () => {
