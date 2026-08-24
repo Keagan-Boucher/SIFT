@@ -76,7 +76,7 @@ export function AccountPopup({ mode, isGuest, email, sessionCode, onClose }: Acc
         {mode === 'demo' ? (
           <Text style={styles.blurb}>
             No Firebase project is configured, so SIFT is running on its seeded dataset. Accounts, live scraping
-            and watches need a project in .env.local.
+            and watches need a project in .env.
           </Text>
         ) : !isGuest ? (
           <>
