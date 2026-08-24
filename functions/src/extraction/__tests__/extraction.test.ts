@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { extractStructuredData } from "../structuredData";
 import { extractHeuristic } from "../heuristicHtml";
+import { extractCandidates } from "../candidates";
 
 function fixture(name: string): string {
   return readFileSync(join(__dirname, "..", "__fixtures__", name), "utf-8");
@@ -97,4 +98,41 @@ test("tier cascade: heuristic parsing only runs once structured data returns nul
   const heuristic = extractHeuristic(html, ["ceramic", "espresso", "cup"]);
   assert.ok(heuristic);
   assert.equal(heuristic?.tier, 4);
+});
+
+test("extractCandidates reads every product out of a JSON-LD ItemList and resolves relative urls", () => {
+  const candidates = extractCandidates(fixture("results-itemlist.html"), "https://outfit.example/search?q=jacket", "trail runner jacket");
+  assert.equal(candidates.length, 2);
+  assert.deepEqual(candidates[0], {
+    tier: 3,
+    title: "Trail Runner Jacket Mens Large",
+    price: 129.99,
+    currency: "USD",
+    inStock: true,
+    url: "https://outfit.example/p/trail-runner-jacket",
+    matchConfidence: 1,
+  });
+  assert.equal(candidates[1].url, "https://outfit.example/p/trail-runner-vest");
+  assert.equal(candidates[1].inStock, false);
+});
+
+test("extractCandidates falls back to card parsing and ranks the right variant first", () => {
+  const candidates = extractCandidates(fixture("results-cards.html"), "https://kloof.co.za/search", "Samsung Galaxy S24 Ultra 256GB");
+  assert.equal(candidates.length, 4);
+  assert.equal(candidates[0].title, "Samsung Galaxy S24 Ultra 256GB Titanium Black");
+  assert.equal(candidates[0].price, 2899);
+  assert.equal(candidates[0].currency, "ZAR");
+  assert.equal(candidates[0].url, "https://kloof.co.za/p/galaxy-s24-ultra-256");
+  assert.equal(candidates[0].tier, 4);
+});
+
+test("extractCandidates ranks the clear case below the phone it matches word for word", () => {
+  const candidates = extractCandidates(fixture("results-cards.html"), "https://kloof.co.za/search", "Samsung Galaxy S24 Ultra 256GB");
+  const caseIndex = candidates.findIndex((c) => c.title.includes("Clear Case"));
+  assert.ok(caseIndex > 0, "the case should not rank first");
+  assert.equal(candidates.find((c) => c.title.includes("Kettle"))?.inStock, false);
+});
+
+test("extractCandidates returns nothing for a client-rendered page with no prices", () => {
+  assert.deepEqual(extractCandidates(fixture("client-rendered-empty.html"), "https://x.co/search", "anything"), []);
 });
