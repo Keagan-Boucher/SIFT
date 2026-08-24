@@ -57,7 +57,7 @@ SIFT inverts that. The user supplies the retailer sites they actually care about
 | **Real-time streaming**   | Prices appear one at a time as each source resolves, driven by Firestore listeners rather than a refresh button.                                         |
 | **Honest confidence**     | Every result carries an extraction tier and a match confidence. Low-confidence matches go to a confirm step instead of quietly being wrong.              |
 | **Price literacy**        | The dashboard shows spread, history and where each retailer sits on the ladder, so the user learns what a good price is rather than just being told one. |
-| **Landscape-first**       | Comparison is a horizontal problem. The core screens are designed for landscape and lock to it.                                                          |
+| **Landscape-first**       | Comparison is a horizontal problem. The core screens are designed for landscape, with a portrait layout for smaller devices.                             |
 
 ### Design constraints
 
@@ -67,7 +67,7 @@ The project is built against three fixed inspiration cards, and every major deci
 | ------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Goal theme         | **Learn Something**   | Spread analysis, price history, tier and confidence badges. The user learns how to read a price, not just what it is. |
 | Device interaction | **Real-Time Data**    | Firestore listeners stream scrape results and price drops as they happen.                                             |
-| Constraint         | **Landscape Support** | A landscape-locked rail plus content layout, with a portrait fallback header for smaller devices.                     |
+| Constraint         | **Landscape Support** | A landscape rail plus content layout, with a portrait header for smaller devices. Rotation is allowed, not locked.    |
 
 ---
 
@@ -84,16 +84,19 @@ The project is built against three fixed inspiration cards, and every major deci
 - **Alert log.** Blocked sources, confirm prompts and price drops surface as dismissible banners and archive to a session log.
 - **Landscape and portrait layouts.** A vertical rail in landscape, a compact header bar in portrait, switched on `useWindowDimensions`.
 - **Extraction pipeline.** JSON-LD, Open Graph, microdata and heuristic HTML parsing, covered by unit tests against real and synthetic fixtures.
-- **Registry resolution.** Previously solved search-URL templates are read back from Firestore, so a site solved once is solved for everyone after.
+- **Full resolution cascade.** Registry lookup, generic search-form discovery, platform fingerprinting for nine ecommerce platforms, and a user-pasted search URL as the last resort. Everything discovered is written back to the shared registry.
+- **Match confidence scoring.** Query tokens containing digits are weighted double, since those separate a variant from its siblings, and accessory listings are penalised. Below 60% the user is asked to pick.
+- **Server-side pipeline.** A Firestore trigger resolves, fetches, extracts and scores every source, four at a time with one request per host, republishing per-source state as each one lands.
+- **Politeness layer.** robots.txt is fetched and obeyed before any request, cached per origin, with per-host rate limiting and an honest user agent.
+- **Anonymous auth with guest upgrade.** A first search needs no account. An email can be attached later without changing the uid, so saved searches survive.
+- **Scheduled price rechecks.** Watched searches are rescraped nightly, each check appending a price point that the dashboard history bars read back.
 
 ### Planned
 
-- Firebase Auth sign-in and per-user search history
-- Live wiring of the frontend to `resolveListingUrl` and `extractListing` (the UI currently runs on a seeded dataset)
-- Form discovery and platform fingerprint resolution (stubbed)
 - Extraction tiers 1 and 2, official APIs and internal JSON endpoints (stubbed, per-retailer work)
 - Headless rendering for client-rendered sites
 - Push notifications on price drops
+- Selection weighting, where the candidate a user confirms informs future ranking
 - EAS Build and submission to the App Store and Play Store
 
 ---
@@ -106,26 +109,29 @@ React Native cannot scrape arbitrary websites from the device. CORS, JavaScript-
 flowchart LR
     subgraph Device["React Native (Expo)"]
         UI[Screens and views]
-        Store[Zustand store]
+        Store[Zustand flow store]
     end
 
     subgraph Firebase["Firebase"]
         Auth[Firebase Auth]
         FS[(Cloud Firestore)]
         subgraph Fn["Cloud Functions, Node 20"]
-            R[resolveListingUrl]
-            E[extractListing]
+            T[onSearchCreated]
+            C[confirmMatch]
+            S[scheduledRecheck]
         end
     end
 
     Retailers[(Retailer websites)]
 
-    UI -->|callable| R
-    UI -->|callable| E
-    R --> Retailers
-    E --> Retailers
-    R -->|template write-back| FS
-    E -->|listing docs| FS
+    UI -->|writes a search doc| FS
+    FS -->|trigger| T
+    T -->|robots.txt, then fetch| Retailers
+    S -->|nightly rescrape| Retailers
+    T -->|listing docs, per-source progress| FS
+    T -->|template write-back| FS
+    S -->|price points| FS
+    UI -->|callable| C --> FS
     FS -->|onSnapshot stream| Store --> UI
     Auth --- UI
 ```
@@ -137,9 +143,9 @@ The pipeline is deliberately split in two. Resolution answers _which page_, extr
 | Order | Method                                                            |   Status    |
 | :---: | ----------------------------------------------------------------- | :---------: |
 |   A   | Stored registry template for a known domain                       | Implemented |
-|   B   | Generic search form discovery on the homepage                     |   Stubbed   |
-|   C   | Known ecommerce platform patterns (Shopify, WooCommerce, Magento) |   Stubbed   |
-|   D   | Ask the user to paste a search URL once                           |   Planned   |
+|   B   | Generic search form discovery on the homepage                     | Implemented |
+|   C   | Known ecommerce platform patterns (Shopify, WooCommerce, Magento) | Implemented |
+|   D   | Ask the user to paste a search URL once                           | Implemented |
 
 Every successful resolution writes its template back to the registry, so the system gets faster and broader with use.
 
@@ -159,7 +165,7 @@ Tiers 3 and 4 are fully generic and need no per-retailer configuration, which is
 
 ### Scraping ethics
 
-`robots-parser` and `p-limit` are in the dependency set for robots.txt compliance and request rate limiting. Official retailer APIs are preferred wherever they exist, and sites that refuse automated access are marked `BLOCKED` in the UI rather than worked around.
+Every outbound request goes through one function in [`functions/src/net/fetchPage.ts`](functions/src/net/fetchPage.ts). It fetches `robots.txt` first, caches it per origin for an hour, and refuses any disallowed path outright, which surfaces as a `BLOCKED` source in the UI rather than being worked around. Requests are limited to one at a time per host and four hosts at once, with a ten second timeout. SIFT identifies itself as `SiftBot` rather than spoofing a browser user agent. Official retailer APIs are preferred wherever they exist.
 
 ---
 
@@ -234,10 +240,13 @@ EXPO_PUBLIC_FIREBASE_PROJECT_ID=
 EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 EXPO_PUBLIC_FIREBASE_APP_ID=
+
+# Point the app at the emulator suite rather than the real project
+EXPO_PUBLIC_USE_FIREBASE_EMULATOR=false
 ```
 
 > [!TIP]
-> The UI currently runs on a seeded dataset, so the app starts and every screen is navigable **without** any Firebase credentials. Fill in `.env` only when you want to exercise the backend.
+> With `EXPO_PUBLIC_FIREBASE_API_KEY` and `EXPO_PUBLIC_FIREBASE_PROJECT_ID` blank the app runs on its seeded dataset, so every screen is navigable **without** any Firebase credentials. Fill them in to get live scraping, accounts and watches. The account panel, opened from the session code, tells you which mode you are in.
 
 ### 3. Database and backend (Docker)
 
@@ -344,7 +353,7 @@ The seeded dataset drives the full six-screen flow, so the whole app is reviewab
 | Fonts render as system default                | Wait for the splash screen to finish; fonts load asynchronously through `expo-font`                                       |
 | Ports 4000, 5001, 8080 or 9099 already in use | Stop other Firebase emulators, or change the ports in `docker-compose.yml` and `firebase.json`                            |
 | Physical device cannot reach Metro            | Put the phone on the same Wi-Fi network, or run `npx expo start --tunnel`                                                 |
-| Landscape lock does not apply                 | Expected on web, where `useLockLandscape` is a no-op. Test on a device or emulator                                        |
+| Portrait layout not appearing                 | Narrow the window below 768px on web, or rotate the device. Layout follows the window shape, not a lock                  |
 | `firebase/auth` type error in the editor      | Known and suppressed. `getReactNativePersistence` is resolved by Metro's `react-native` export condition but not by `tsc` |
 
 </details>
@@ -396,24 +405,27 @@ Blocked sources, confirm prompts and price drops appear as banners tagged by sig
 
 ### Landscape support
 
-In landscape a 56px vertical rail carries the screen name, connection state, source count and session code, with the saved-searches strip beside it. In portrait that collapses to a horizontal header bar and the content reflows to a single column. Layout is chosen from `useWindowDimensions`, and `useLockLandscape` pins the orientation on device.
+In landscape a 56px vertical rail carries the screen name, connection state, source count and session code, with the saved-searches strip beside it. In portrait that collapses to a horizontal header bar and the content reflows to a single column. Layout is chosen from `useWindowDimensions`, so both orientations ship rather than one being locked out.
 
 ---
 
 ## Data model
 
-Firestore, four collections. Shared TypeScript interfaces live in [`src/types/firestore.ts`](src/types/firestore.ts) for the client and [`functions/src/types/index.ts`](functions/src/types/index.ts) for the backend.
+Firestore, six collections. Shared TypeScript interfaces live in [`src/types/firestore.ts`](src/types/firestore.ts) for the client and [`functions/src/types/index.ts`](functions/src/types/index.ts) for the backend.
 
 ```mermaid
 erDiagram
     users ||--o{ searches : owns
+    users ||--o{ savedSearches : watches
     searches ||--o{ listings : produces
+    savedSearches ||--o{ pricePoints : records
     retailerTemplates }o--|| listings : "resolved via"
 
     users {
         string uid PK
         string email
         string displayName
+        boolean isAnonymous
         Timestamp createdAt
     }
     searches {
@@ -421,6 +433,8 @@ erDiagram
         string userId FK
         string query
         string status "pending resolving extracting complete failed"
+        array sources "domain status method reason"
+        number resolvedCount
         Timestamp createdAt
         Timestamp updatedAt
     }
@@ -434,8 +448,28 @@ erDiagram
         string currency
         boolean inStock
         number matchConfidence
+        number confidenceBadge "1 to 4"
         number extractionTier "1 to 4"
+        boolean needsConfirmation
+        boolean confirmedByUser
+        array candidates "runners-up for the confirm step"
         Timestamp scrapedAt
+    }
+    savedSearches {
+        string id PK
+        string userId FK
+        string query
+        array sources
+        number lowestPrice
+        number previousLowestPrice
+        number sourceCount
+        Timestamp lastCheckedAt
+    }
+    pricePoints {
+        string id PK
+        string savedSearchId FK
+        number price
+        Timestamp observedAt
     }
     retailerTemplates {
         string domain PK
@@ -444,22 +478,32 @@ erDiagram
         Timestamp lastValidatedAt
         number successCount
         number failureCount
+        number confirmedMatchCount
     }
 ```
 
-Security rules in [`firestore.rules`](firestore.rules) keep `users` and `searches` scoped to their owner, make `listings` and `retailerTemplates` readable by any signed-in user, and block client writes to both so only the admin SDK inside Cloud Functions can populate them. A composite index on `listings` by `searchId` then `price` backs the sorted results query.
+Security rules in [`firestore.rules`](firestore.rules) scope `users`, `searches` and `savedSearches` to their owner. A search is create-then-read-only for the client, since everything after creation is written by the pipeline. `listings` are readable only by the owner of their parent search and never client-writable, so the confirm step has to go through the callable. `retailerTemplates` are readable by any signed-in user, because that is the point of write-back: a site solved once is solved for everyone after.
+
+Composite indexes back the sorted listing query, both per-user listings, and the price history series.
 
 ---
 
 ## Testing
 
-The extraction parsers are the part most likely to break silently, so they are covered by unit tests against seven HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
+Scraping is the part most likely to break silently, so it is covered by 38 tests against twelve HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
 
 ```bash
 npm test --prefix functions
 ```
 
-Eleven tests cover JSON-LD products, products nested in `@graph`, Open Graph price meta, microdata, heuristic parsing where no price class exists, and correct `null` returns when a page carries no extractable data.
+| Suite | Covers |
+| --- | --- |
+| `extraction` | JSON-LD products, products nested in `@graph`, Open Graph price meta, microdata, heuristic parsing with no price class, candidate extraction from an `ItemList` and from repeated cards, and correct `null` returns when a page carries nothing extractable |
+| `resolution` | Search-form discovery including hidden scope fields and skipped POST forms, platform fingerprinting, template building and validation, and turning a user-pasted URL into a reusable template |
+| `matching` | Exact matches, wrong storage variants, accessories that match the query word for word, and the confidence-to-badge mapping |
+| `pipeline` | The whole scrape end to end against a local HTTP server: robots.txt fetched first and obeyed, the search URL derived from the homepage, the results page parsed, and each failure mode reporting its own reason |
+
+The pipeline suite runs without Firebase, which also proves the registry degrades rather than throwing when Firestore is unavailable.
 
 Lint the app with:
 
@@ -481,19 +525,22 @@ SIFT/
 │   │   ├── sift-theme.ts      Design tokens, single source of truth
 │   │   └── sift-mock-data.ts  Seeded dataset driving the UI
 │   ├── hooks/
-│   │   ├── use-sift-flow.ts   Flow state machine, derived UI state
+│   │   ├── use-sift-flow.ts   View model: derived UI state and actions
+│   │   ├── use-auth.ts        Anonymous sign-in and guest upgrade
+│   │   ├── session/           Live Firestore session and seeded demo session
 │   │   ├── use-orientation.ts
-│   │   └── use-lock-landscape.ts
-│   ├── lib/                   Firebase client init, price formatting
-│   ├── store/                 Zustand search store
-│   └── types/                 Firestore document types
+│   │   └── use-orientation-policy.ts
+│   ├── lib/                   Firebase client, Firestore queries, doc-to-view mappers
+│   ├── store/                 Zustand flow store (UI state only)
+│   └── types/                 Firestore document types and view model types
 ├── functions/src/
+│   ├── net/                   robots.txt, rate limiting, the single outbound fetch
 │   ├── resolution/            Stage 1: registry, form discovery, platform patterns
-│   ├── extraction/            Stage 2: the four-tier cascade
-│   │   ├── __fixtures__/      HTML test pages
-│   │   └── __tests__/         Parser unit tests
+│   ├── extraction/            Stage 2: the four-tier cascade and candidate extraction
+│   ├── matching/              Match confidence scoring
+│   ├── pipeline/              Search orchestration, confirm-match, scheduled rechecks
 │   ├── types/                 Shared backend types
-│   └── index.ts               Callable function exports
+│   └── index.ts               Function exports
 ├── assets/                    Icons, splash, tab imagery
 ├── docker-compose.yml         Emulator suite
 ├── Dockerfile.emulators       Node 20, Java 17, firebase-tools
@@ -522,21 +569,26 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 
 ## Project status
 
-| Area                                 |        State         |
-| ------------------------------------ | :------------------: |
-| Design system and tokens             |       Complete       |
-| Six screens, landscape and portrait  |       Complete       |
-| Flow state machine                   |       Complete       |
-| Extraction tiers 3 and 4             |   Complete, tested   |
-| Registry resolution                  |       Complete       |
-| Firestore schema, rules, indexes     |       Complete       |
-| Docker emulator environment          |       Complete       |
-| Form discovery and platform patterns |       Stubbed        |
-| Frontend wired to live Firestore     |     In progress      |
-| Firebase Auth flows                  |       Planned        |
-| Extraction tiers 1 and 2             | Future consideration |
-| Headless rendering                   | Future consideration |
-| EAS Build and store submission       |       Planned        |
+| Area                                     |        State         |
+| ---------------------------------------- | :------------------: |
+| Design system and tokens                 |       Complete       |
+| Six screens, landscape and portrait      |       Complete       |
+| Flow state machine and Zustand store     |       Complete       |
+| Resolution methods A to D                |   Complete, tested   |
+| Extraction tiers 3 and 4                 |   Complete, tested   |
+| Match confidence and confirm step        |   Complete, tested   |
+| Politeness: robots.txt and rate limiting |   Complete, tested   |
+| Search pipeline and real-time streaming  |       Complete       |
+| Scheduled saved-search rechecks          |       Complete       |
+| Firebase Auth with guest upgrade         |       Complete       |
+| Frontend wired to live Firestore         |       Complete       |
+| Firestore schema, rules, indexes         |       Complete       |
+| Docker emulator environment              |       Complete       |
+| EAS build profiles                       |       Complete       |
+| Extraction tiers 1 and 2                 | Future consideration |
+| Headless rendering                       | Future consideration |
+| Push notifications on price drops        |       Planned        |
+| Store submission                         |       Planned        |
 
 ---
 
