@@ -1,10 +1,10 @@
 import type { ExtractionResult, ScoredCandidate } from "../types";
-import { renderPage, type RenderResult } from "../net/headlessBrowser";
+import { renderPage, type RenderOptions, type RenderResult } from "../net/headlessBrowser";
 import { extractStructuredData } from "./structuredData";
 import { extractHeuristic } from "./heuristicHtml";
 import { extractCandidates } from "./candidates";
 
-type Render = (url: string) => Promise<RenderResult>;
+type Render = (url: string, options?: RenderOptions) => Promise<RenderResult>;
 
 /**
  * Tier 5, the fix for the known limitation tiers 3-4 both document: a page
@@ -22,7 +22,12 @@ export async function extractHeadless(
   tokens: string[],
   render: Render = renderPage,
 ): Promise<ExtractionResult | null> {
-  const { html } = await render(url);
+  // The render stops as soon as the page carries something these parsers can
+  // read, rather than after a fixed wait that is either too short on a slow
+  // page or wasted on a fast one.
+  const { html } = await render(url, {
+    until: (current) => (extractStructuredData(current) ?? extractHeuristic(current, tokens)) !== null,
+  });
   if (!html) return null;
 
   const result = extractStructuredData(html) ?? extractHeuristic(html, tokens);
@@ -35,7 +40,9 @@ export async function extractCandidatesHeadless(
   query: string,
   render: Render = renderPage,
 ): Promise<ScoredCandidate[]> {
-  const { html } = await render(url);
+  const { html } = await render(url, {
+    until: (current) => extractCandidates(current, url, query).length > 0,
+  });
   if (!html) return [];
 
   return extractCandidates(html, url, query).map((candidate) => ({ ...candidate, tier: 5 }));

@@ -6,22 +6,35 @@ import { isAllowed, USER_AGENT } from "./fetchPage";
 
 const NAV_TIMEOUT_MS = 25_000;
 /**
- * How long to give the page's own network calls a chance to go quiet before
- * reading it. A results grid built from an XHR/GraphQL call after the shell
- * loads is common, and there is no reliable way to name which request that
- * is up front, so this waits for the network to settle instead of guessing.
- * Sites that never go fully idle (polling, analytics beacons) just use the
- * whole budget rather than failing, since the wait is not required to succeed.
+ * How long to keep waiting for the page to produce what the caller is after.
+ *
+ * Two cheaper signals were tried first and both read the page too early,
+ * which is worth recording so neither is attempted again.
+ *
+ * `networkidle` looks right but fires in the wrong gap. Measured against
+ * evetech.co.za from a deployed function: its analytics (Google Ads, Twitter,
+ * Bing, GTM) finish around 11.3s, the site's own search only fires at 12.6s,
+ * and the results land at 13.0s. The network is therefore briefly quiet
+ * *before* the request that matters has even started.
+ *
+ * Waiting for the DOM to stop growing fails the same way, because the markup
+ * plateaus in that same gap: it returned in 3.7s with 0 candidates.
+ *
+ * So the render polls for the caller's own success condition instead, and
+ * stops the moment it is met. That is both more reliable and usually faster,
+ * since a page that renders quickly is not made to sit out a fixed budget.
  */
-const SETTLE_TIMEOUT_MS = 5_000;
+const CONTENT_TIMEOUT_MS = 30_000;
+const CONTENT_POLL_MS = 2_000;
 /**
  * Product grids are commonly virtualised or lazy-loaded on scroll, so cards
- * below the fold never render even once the network is idle. A bounded
+ * below the fold never render even once the page has settled. A bounded
  * scroll pass triggers that loading without needing to know the site's own
  * lazy-load mechanism.
  */
 const SCROLL_STEP_PX = 900;
 const MAX_SCROLL_PX = 6_000;
+const SCROLL_TIMEOUT_MS = 5_000;
 /**
  * A hard ceiling on one render attempt, independent of every timeout inside
  * it. Those inner timeouts (goto, networkidle) only bound the *page*; they do
@@ -32,7 +45,7 @@ const MAX_SCROLL_PX = 6_000;
  * singleton, every future render on that instance would queue behind it and
  * hang too, silently, until the whole function is killed by its own timeout.
  */
-const HARD_DEADLINE_MS = 40_000;
+const HARD_DEADLINE_MS = 65_000;
 
 /**
  * One render at a time. This was briefly 2, on the theory that a context is
@@ -49,43 +62,42 @@ const HARD_DEADLINE_MS = 40_000;
 const headlessLimit = pLimit(1);
 
 /**
- * One Chromium process is kept alive for the lifetime of the function
- * instance and reused across invocations, since launching it is the
- * expensive part. A warm instance therefore renders subsequent pages much
- * faster than the first.
+ * A fresh browser per render, closed afterwards.
+ *
+ * This was a warm singleton reused across renders, on the usual reasoning that
+ * launching Chromium is the expensive part. That is true and it still does not
+ * work here, because `--single-process` is not optional in this environment:
+ * with the browser and its renderer in one process, closing the first render's
+ * context takes the process down with it, and every render after the first on
+ * that instance fails. It failed quietly too, returning no HTML rather than
+ * throwing, so the pipeline reported "found none" for a page that renders
+ * perfectly well on its own.
+ *
+ * Measured: two sequential renders through a shared browser gave 8 candidates
+ * then 0; the same two with a browser each give 8 and 8. Paying the launch
+ * cost every time is the price of the sandbox, and headlessLimit already
+ * serialises renders, so nothing is contending for it anyway.
  */
-let browserPromise: Promise<Browser> | null = null;
-
 async function launchBrowser(): Promise<Browser> {
   const executablePath = await chromium.executablePath();
   return playwright.launch({ executablePath, args: chromium.args, headless: true });
 }
 
-function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = launchBrowser().catch((error) => {
-      browserPromise = null;
-      throw error;
-    });
-  }
-  return browserPromise;
-}
-
-/**
- * Discards the shared browser so the next render launches a fresh one,
- * rather than queueing behind a process that has stopped responding. The old
- * handle is closed in the background: it may itself hang given it is the
- * thing suspected of being wedged, so nothing here waits on it.
- */
-function poisonBrowser(): void {
-  const stale = browserPromise;
-  browserPromise = null;
-  stale?.then((browser) => browser.close()).catch(() => {});
-}
-
 export interface RenderResult {
   html: string | null;
   error?: string;
+}
+
+export interface RenderOptions {
+  /**
+   * The caller's success condition, polled against the page's current HTML.
+   * The render returns as soon as it holds. Without it the render waits the
+   * whole content budget, since it has no way to know what it is waiting for.
+   *
+   * This lives with the caller rather than here so that net/ stays ignorant of
+   * extraction: what counts as "the page is ready" is an extraction question.
+   */
+  until?: (html: string) => boolean;
 }
 
 /**
@@ -97,56 +109,80 @@ export interface RenderResult {
  * warm instance, so isConnected() is checked on the way out and the browser
  * is discarded if it has gone.
  */
-async function attemptRender(url: string): Promise<RenderResult> {
-  let context;
+async function attemptRender(url: string, options: RenderOptions): Promise<RenderResult> {
   let browser: Browser | undefined;
   try {
-    browser = await getBrowser();
-    context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1366, height: 1400 } });
+    browser = await launchBrowser();
+    const context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1366, height: 1400 } });
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
-    // Not required to succeed: a page whose network never quiets down still
-    // gets read once the budget runs out, rather than failing the render.
-    await page.waitForLoadState("networkidle", { timeout: SETTLE_TIMEOUT_MS }).catch(() => {});
+
     // A string body, not a closure: this runs in the page's own browser
     // context, which has no DOM lib available to this project's tsconfig.
-    await page.evaluate(
-      `(async ({ step, max }) => {
-        for (let scrolled = 0; scrolled < max && scrolled < document.body.scrollHeight; scrolled += step) {
-          window.scrollBy(0, step);
-          await new Promise((resolve) => setTimeout(resolve, 150));
-        }
-      })(${JSON.stringify({ step: SCROLL_STEP_PX, max: MAX_SCROLL_PX })})`,
-    );
+    const scrollPass = `(async ({ step, max }) => {
+      for (let scrolled = 0; scrolled < max && scrolled < document.body.scrollHeight; scrolled += step) {
+        window.scrollBy(0, step);
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    })(${JSON.stringify({ step: SCROLL_STEP_PX, max: MAX_SCROLL_PX })})`;
+
+    // Wait for the page to produce what the caller wants, without touching it.
+    // Scrolling during this window was tried and breaks the very sites it was
+    // meant to help: repeatedly scrolling a virtualised grid while it is still
+    // hydrating keeps it from ever settling, and evetech.co.za went from 8
+    // candidates to 0 for the whole budget. Leave the page alone until it has
+    // something to show.
+    const deadline = Date.now() + CONTENT_TIMEOUT_MS;
+    let html = await page.content();
+    while (!options.until?.(html) && Date.now() < deadline) {
+      await page.waitForTimeout(CONTENT_POLL_MS);
+      html = await page.content();
+    }
+
+    // One scroll pass at the end, to pull in cards below the fold that are
+    // lazily loaded. Only now is there a rendered grid for it to act on.
+    //
+    // Raced against a timer because `evaluate` has no timeout of its own: on a
+    // page still busy with its own scripts it can sit there indefinitely, and
+    // without this it runs until the whole render hits its hard deadline,
+    // which then discards a browser that was never actually broken.
+    await Promise.race([
+      page.evaluate(scrollPass).catch(() => {}),
+      page.waitForTimeout(SCROLL_TIMEOUT_MS),
+    ]).catch(() => {});
+    await page.waitForTimeout(CONTENT_POLL_MS);
+
     return { html: await page.content() };
   } catch (error) {
     logger.warn(`headless render of ${url} failed`, error);
-    if (browser && !browser.isConnected()) poisonBrowser();
     return { html: null, error: error instanceof Error ? error.message : "headless render failed" };
   } finally {
-    await context?.close().catch(() => {});
+    // Closing the browser takes its context and page with it, and nothing here
+    // outlives the render, so there is no cheaper teardown to do first.
+    await browser?.close().catch(() => {});
   }
 }
 
 /**
  * Races the actual render against the hard deadline so the concurrency slot
  * this holds is always freed on time, no matter what the render itself is
- * doing. If the deadline wins, the render is abandoned (not cancelled: there
- * is no way to force that on an in-flight browser call) and the browser is
- * presumed wedged and discarded, so the next attempt gets a clean one.
+ * doing. If the deadline wins, the render is abandoned rather than cancelled,
+ * since there is no way to force that on an in-flight browser call. The
+ * abandoned attempt still closes its own browser when it eventually unwinds,
+ * and the next render launches its own regardless, so nothing here has to
+ * clean up after it.
  */
-async function renderWithDeadline(url: string): Promise<RenderResult> {
+async function renderWithDeadline(url: string, options: RenderOptions): Promise<RenderResult> {
   let timer: ReturnType<typeof setTimeout>;
   const timedOut = new Promise<"timed-out">((resolve) => {
     timer = setTimeout(() => resolve("timed-out"), HARD_DEADLINE_MS);
   });
 
-  const outcome = await Promise.race([attemptRender(url), timedOut]);
+  const outcome = await Promise.race([attemptRender(url, options), timedOut]);
   clearTimeout(timer!);
 
   if (outcome === "timed-out") {
-    logger.warn(`headless render of ${url} exceeded its ${HARD_DEADLINE_MS}ms deadline, discarding the browser`);
-    poisonBrowser();
+    logger.warn(`headless render of ${url} exceeded its ${HARD_DEADLINE_MS}ms deadline, abandoning it`);
     return { html: null, error: "headless render exceeded its time budget" };
   }
   return outcome;
@@ -160,10 +196,10 @@ async function renderWithDeadline(url: string): Promise<RenderResult> {
  * a blocked or unreachable page is, as "no HTML", since the caller is
  * already the last resort in the cascade.
  */
-export async function renderPage(url: string): Promise<RenderResult> {
+export async function renderPage(url: string, options: RenderOptions = {}): Promise<RenderResult> {
   if (!(await isAllowed(url))) {
     return { html: null, error: "robots.txt disallows this page" };
   }
 
-  return headlessLimit(() => renderWithDeadline(url));
+  return headlessLimit(() => renderWithDeadline(url, options));
 }

@@ -152,7 +152,13 @@ export async function runSearchPipeline(searchId: string, data: SearchData): Pro
 export const onSearchCreated = onDocumentCreated(
   // 1GiB, up from 512MiB: a headless render (Tier 5) needs a real Chromium
   // process running inside this instance, which a plain fetch never did.
-  { document: "searches/{searchId}", timeoutSeconds: 300, memory: "1GiB" },
+  // 2GiB, up from 1GiB. A single headless render fits comfortably in 1GiB, and
+  // a callable that only does one still does. This trigger does not: it holds
+  // several fetched pages, their parsed DOMs and then a rendered page of nearly
+  // a megabyte, all while Chromium is resident. Going over does not throw, the
+  // container is killed, so the function dies before it can write a status and
+  // the search sits on RESOLVING forever rather than reporting a failure.
+  { document: "searches/{searchId}", timeoutSeconds: 300, memory: "2GiB" },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;

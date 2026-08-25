@@ -188,13 +188,12 @@ Tiers 3-5 are fully generic and need no per-retailer configuration, which is wha
 > The local emulator path still matters, both because a home connection is the fallback if a retailer does start refusing datacentre ranges, and because tier 5 currently extracts more reliably there than in production. See the limitations below.
 
 > [!NOTE]
-> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Six things stop that working, and all six were hit against real retailers rather than found in theory.
+> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Five things stop that working, and all five were hit against real retailers rather than found in theory.
 >
 > | Limitation | What happens | The fix, and where it sits |
 > | --- | --- | --- |
 > | Client-rendered storefronts | The page is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Tier 5 headless rendering, implemented. Costs a browser rather than a fetch, so it only runs as the last resort |
-> | Headless is slow and not guaranteed | A heavy storefront can use the full 40s render budget per candidate URL and still return nothing, so one source can take a minute or more before it reports. | Bounded by a hard deadline that discards and relaunches the browser rather than hanging. Accepted cost of the last resort |
-> | Tier 5 under-renders in production | The headless render succeeds in deployed Cloud Functions (no error, ~18s, 592KB), but the page has not finished hydrating when it is read, so extraction finds **0 candidates** where the same URL yields 8 in the Docker emulator. Static HTML is byte-identical in both, so the site is not cloaking. | Open. The settle window and scroll pass are tuned for the emulator's faster Chromium. Run locally for a reliable tier 5 demo |
+> | Headless is slow, and slower deployed | A render costs a Chromium launch plus however long the page needs, and a wrong guess spends its whole content budget before giving up. Deployed, one source can take ~50s across two candidate URLs against ~6s in the emulator. | Bounded by a hard per-render deadline, and capped at two candidate URLs so a source cannot outlive the trigger's own 300s. Accepted cost of the last resort |
 > | Datacentre IP blocking | Was hit once as a TCP reset from `europe-west1`, and did not reproduce on re-test from either region. Cloudflare can also return `403` to hosting ranges. | Treat as possible rather than certain. A home connection via the emulator is the fallback if it returns |
 > | robots.txt on search paths | Many storefronts allow `/` and disallow `/search`. That is a refusal, and SIFT honours it, including for a URL the user pasted themselves. | Nothing to fix. The source is reported `BLOCKED` |
 > | Niche catalogues | The shop simply does not stock the product, and its search returns unrelated items. | Nothing to fix. Reported as such rather than as a failure |
@@ -633,7 +632,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Flow state machine and Zustand store     |       Complete       |
 | Resolution methods A to D                |   Complete, tested   |
 | Extraction tiers 3 and 4                 |   Complete, tested   |
-| Extraction tier 5, headless rendering    | Complete locally. Runs in production but under-renders, see limitations |
+| Extraction tier 5, headless rendering    |   Complete, tested   |
 | Match confidence and confirm step        |   Complete, tested   |
 | Politeness: robots.txt and rate limiting |   Complete, tested   |
 | Search pipeline and real-time streaming  |       Complete       |
