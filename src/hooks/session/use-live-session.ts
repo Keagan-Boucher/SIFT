@@ -122,14 +122,12 @@ export function useLiveSession(userId: string | null): SiftSession {
 
   const runSearch = useCallback((query: string) => startSearch(query, userSearchUrls), [startSearch, userSearchUrls]);
 
-  const provideSearchUrl = useCallback(
-    (domain: string, url: string) => {
-      const urls = { ...userSearchUrls, [domain]: url };
-      setUserSearchUrls(urls);
-      startSearch(activeQuery, urls);
-    },
-    [userSearchUrls, activeQuery, startSearch],
-  );
+  // Stages the URL only: retrying immediately would mean submitting one of
+  // several FAILED sources' URLs re-runs the search before the rest are in.
+  // runSearch (or another provideSearchUrl call) picks up everything staged.
+  const provideSearchUrl = useCallback((domain: string, url: string) => {
+    setUserSearchUrls((urls) => ({ ...urls, [domain]: url }));
+  }, []);
 
   const confirmCandidate = useCallback(
     (index: number) => {

@@ -71,16 +71,15 @@ export function useSiftFlow() {
     setScreen('live');
   }, [session, state, setScreen]);
 
-  /** Method D: retries one FAILED source with a search URL the user pasted for it. */
+  // Method D: stages a search URL pasted for one FAILED source. Multiple
+  // sources can each get one before retrying, so this only closes the popup;
+  // runSearch (the existing RETRY SEARCH action) is what re-runs with them.
   const submitRetryUrl = useCallback(
     (domain: string, url: string) => {
       session.provideSearchUrl(domain, url.trim());
       closeRetry();
-      state.select(null);
-      state.choose(0);
-      setScreen('live');
     },
-    [session, closeRetry, state, setScreen],
+    [session, closeRetry],
   );
 
   const backToSourcesFromLive = useCallback(() => {
@@ -183,9 +182,16 @@ export function useSiftFlow() {
         secondaryAction: resetSources,
       },
       live: {
-        primaryLabel: !complete ? 'SEARCH RUNNING' : selectedIssue ? 'RESOLVE ISSUE' : 'CONFIRM MATCHES',
+        primaryLabel: !complete
+          ? 'SEARCH RUNNING'
+          : selectedIssue
+            ? 'RESOLVE ISSUE'
+            : failedSources > 0
+              ? 'RETRY SEARCH'
+              : 'CONFIRM MATCHES',
         primaryAction: () => {
           if (selectedIssue && selectedTile) openConfirm(selectedTile.domain);
+          else if (failedSources > 0) runSearch();
           else setScreen('results');
         },
         primaryDisabled: !complete || (!selectedIssue && openIssues > 0),
