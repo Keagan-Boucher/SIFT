@@ -561,6 +561,27 @@ npm test --prefix functions
 
 The pipeline suite runs without Firebase, which also proves the registry degrades rather than throwing when Firestore is unavailable.
 
+### Smoke-testing the deployed backend
+
+The unit suites never touch the network or a browser, so they cannot tell you whether what is deployed actually works. This does: it signs in anonymously, writes a real search document and waits for the trigger to resolve, scrape and score it, exactly as the app would.
+
+```bash
+node scripts/smoke-production.mjs evetech.co.za "ddr4 ram"
+```
+
+```
+     5s  extracting · RESOLVING
+    26s  complete · RESOLVED
+
+  tier 5 · ZAR 1599 · confidence 0.67
+  klevv-bolt-x-8gb-ddr4-3200-memory
+  5 runners-up, method registry
+```
+
+It always talks to the deployed project, whatever `EXPO_PUBLIC_USE_FIREBASE_EMULATOR` is set to, since the point is to check production. Exit code is 0 on `complete` and 1 on `failed`, so it works in CI.
+
+Two arguments worth keeping to hand: `evetech.co.za "ddr4 ram"` exercises the whole cascade down to a tier 5 headless render, and `scrapeme.live charjabug` resolves in about five seconds on tier 3 without a browser, which is the quicker check that the backend is up at all.
+
 Lint the app with:
 
 ```bash
