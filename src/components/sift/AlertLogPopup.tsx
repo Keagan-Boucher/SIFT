@@ -14,19 +14,27 @@ interface AlertLogPopupProps {
   entries: ArchiveLogEntry[];
   count: string;
   onClose: () => void;
+  title?: string;
+  emptyText?: string;
 }
 
-export function AlertLogPopup({ entries, count, onClose }: AlertLogPopupProps) {
+export function AlertLogPopup({
+  entries,
+  count,
+  onClose,
+  title = 'ALERT_LOG',
+  emptyText = 'No alerts yet. Dismissed alerts are kept here for the session.',
+}: AlertLogPopupProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <CommandHeading sigil="//" text="ALERT_LOG" suffix={count} />
+        <CommandHeading sigil="//" text={title} suffix={count} />
         <Pressable onPress={onClose} style={styles.close}>
           <Text style={styles.closeLabel}>×</Text>
         </Pressable>
       </View>
       {entries.length === 0 ? (
-        <Text style={styles.empty}>No alerts yet. Dismissed alerts are kept here for the session.</Text>
+        <Text style={styles.empty}>{emptyText}</Text>
       ) : (
         <ScrollView style={styles.list}>
           {entries.map((log) => (

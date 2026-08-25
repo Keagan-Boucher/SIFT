@@ -22,6 +22,7 @@ interface FlowStore {
   query: string;
   showArchive: boolean;
   showAccount: boolean;
+  showLinks: boolean;
   /** Domain of the FAILED source whose "paste a search URL" popup is open, if any. */
   retryDomain: string | null;
   /** Index of the candidate selected in the confirm step. */
@@ -35,6 +36,7 @@ interface FlowStore {
   setQuery: (query: string) => void;
   toggleArchive: () => void;
   toggleAccount: () => void;
+  toggleLinks: () => void;
   openRetry: (domain: string) => void;
   closeRetry: () => void;
   choose: (index: number) => void;
@@ -49,6 +51,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
   query: DEFAULT_QUERY,
   showArchive: false,
   showAccount: false,
+  showLinks: false,
   retryDomain: null,
   chosen: 0,
   selected: null,
@@ -57,10 +60,11 @@ export const useFlowStore = create<FlowStore>((set) => ({
   setScreen: (screen) => set({ screen }),
   setInput: (input) => set({ input }),
   setQuery: (query) => set({ query }),
-  // All three share a corner, so opening one closes the others.
-  toggleArchive: () => set((s) => ({ showArchive: !s.showArchive, showAccount: false, retryDomain: null })),
-  toggleAccount: () => set((s) => ({ showAccount: !s.showAccount, showArchive: false, retryDomain: null })),
-  openRetry: (domain) => set({ retryDomain: domain, showArchive: false, showAccount: false }),
+  // All four share a corner, so opening one closes the others.
+  toggleArchive: () => set((s) => ({ showArchive: !s.showArchive, showAccount: false, showLinks: false, retryDomain: null })),
+  toggleAccount: () => set((s) => ({ showAccount: !s.showAccount, showArchive: false, showLinks: false, retryDomain: null })),
+  toggleLinks: () => set((s) => ({ showLinks: !s.showLinks, showArchive: false, showAccount: false, retryDomain: null })),
+  openRetry: (domain) => set({ retryDomain: domain, showArchive: false, showAccount: false, showLinks: false }),
   closeRetry: () => set({ retryDomain: null }),
   choose: (chosen) => set({ chosen }),
   select: (selected) => set({ selected }),

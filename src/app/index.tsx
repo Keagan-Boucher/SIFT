@@ -34,7 +34,7 @@ export default function SiftAppScreen() {
   useOrientationPolicy();
   const orientation = useOrientation();
   const flow = useSiftFlow();
-  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, mode, isGuest, accountEmail, actions } = flow;
+  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, hasLinks, linksCount, stagedLinks, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, showLinks, mode, isGuest, accountEmail, actions } = flow;
 
   const ActiveView = VIEW_BY_SCREEN[state.screen];
 
@@ -46,7 +46,7 @@ export default function SiftAppScreen() {
       body={n.body}
       retryable={n.retryable}
       onRetry={n.domain ? () => actions.openRetry(n.domain as string) : undefined}
-      onDismiss={n.id.startsWith('staged-') ? undefined : () => actions.dismissNote(n.id)}
+      onDismiss={() => actions.dismissNote(n.id)}
     />
   ));
 
@@ -73,6 +73,17 @@ export default function SiftAppScreen() {
           <AlertLogPopup entries={archiveLabeled} count={String(archiveCount).padStart(2, '0')} onClose={actions.toggleArchive} />
         </View>
       )}
+      {showLinks && (
+        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
+          <AlertLogPopup
+            entries={stagedLinks}
+            count={String(linksCount).padStart(2, '0')}
+            onClose={actions.toggleLinks}
+            title="LINKS"
+            emptyText="No links staged. Paste a search URL from a FAILED source's alert to add one."
+          />
+        </View>
+      )}
       {state.retryDomain && (
         <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
           <RetryUrlPopup
@@ -95,6 +106,9 @@ export default function SiftAppScreen() {
       alertCount={alertCount}
       hasAlerts={hasAlerts}
       onToggleAlerts={actions.toggleArchive}
+      linksCount={linksCount}
+      hasLinks={hasLinks}
+      onToggleLinks={actions.toggleLinks}
       statusLine={statusLine}
     />
   );

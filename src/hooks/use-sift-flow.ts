@@ -8,7 +8,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { useDemoSession } from '@/hooks/session/use-demo-session';
 import { useLiveSession } from '@/hooks/session/use-live-session';
 import { useFlowStore, type Screen } from '@/store/useFlowStore';
-import type { NoteView } from '@/types/view';
 
 export type { Screen };
 
@@ -39,7 +38,7 @@ export function useSiftFlow() {
   // Live only once there is a project and a signed-in uid to own the documents.
   const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
 
-  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, openRetry, closeRetry } = state;
+  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry } = state;
   const chooseRecent = setQuery;
   const selectTile = useCallback((index: number) => state.select(index), [state]);
   const closeListing = useCallback(() => state.select(null), [state]);
@@ -122,19 +121,19 @@ export function useSiftFlow() {
   const checkAll = useCallback(() => session.checkAllSaved(), [session]);
 
   const derived = useMemo(() => {
-    const { screen, selected, chosen, dismissed, showArchive, showAccount } = state;
+    const { screen, selected, chosen, dismissed, showArchive, showAccount, showLinks } = state;
     const { tiles, sources, saved, recents, candidates, running, complete, history } = session;
 
     const dismissedIds = new Set(dismissed.map((note) => note.id));
-    // Staged links surface the same way as a note: a stacked banner cascade
-    // confirming what RETRY SEARCH will actually retry, not just a count.
-    const stagedNotes: NoteView[] = Object.entries(session.stagedUrls).map(([domain, url]) => ({
+    const notes = session.notes.filter((note) => !dismissedIds.has(note.id));
+
+    // Collapsed behind its own chip, same shape AlertLogPopup already renders.
+    const stagedLinks = Object.entries(session.stagedUrls).map(([domain, url]) => ({
       id: `staged-${domain}`,
-      kind: 'prompt',
-      heading: 'LINK_ADDED',
-      body: `${domain}: ${url}`,
+      label: '>LINK_ADDED',
+      stamp: domain,
+      body: url,
     }));
-    const notes = [...session.notes.filter((note) => !dismissedIds.has(note.id)), ...stagedNotes];
 
     const resolved = tiles.length;
     const sorted = [...tiles].sort((a, b) => a.value - b.value);
@@ -372,6 +371,10 @@ export function useSiftFlow() {
       hasDrops: droppedCount > 0,
       showArchive,
       showAccount,
+      showLinks,
+      hasLinks: stagedLinks.length > 0,
+      linksCount: stagedLinks.length,
+      stagedLinks,
       accountEmail: auth.user?.email ?? null,
       sourceCountLabel: String(sources.length).padStart(2, '0'),
       recentCount: String(recents.length).padStart(2, '0'),
@@ -428,6 +431,7 @@ export function useSiftFlow() {
       dismissNote,
       toggleArchive,
       toggleAccount,
+      toggleLinks,
       openRetry,
       closeRetry,
       submitRetryUrl,

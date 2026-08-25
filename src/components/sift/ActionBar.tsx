@@ -13,6 +13,9 @@ interface ActionBarProps {
   alertCount: number;
   hasAlerts: boolean;
   onToggleAlerts: () => void;
+  linksCount: number;
+  hasLinks: boolean;
+  onToggleLinks: () => void;
   statusLine: string;
   style?: StyleProp<ViewStyle>;
 }
@@ -26,6 +29,9 @@ export function ActionBar({
   alertCount,
   hasAlerts,
   onToggleAlerts,
+  linksCount,
+  hasLinks,
+  onToggleLinks,
   statusLine,
   style,
 }: ActionBarProps) {
@@ -40,6 +46,11 @@ export function ActionBar({
         </Button>
       </View>
       <View style={styles.rightGroup}>
+        <Pressable onPress={onToggleLinks} style={styles.alertButton}>
+          <Text style={styles.alertLabel}>
+            LINKS <Text style={{ color: hasLinks ? SiftColors.acid : SiftColors.boneDim }}>[{linksCount}]</Text>
+          </Text>
+        </Pressable>
         <Pressable onPress={onToggleAlerts} style={styles.alertButton}>
           <Text style={styles.alertLabel}>
             ALERT LOG <Text style={{ color: hasAlerts ? SiftColors.ember : SiftColors.boneDim }}>[{alertCount}]</Text>

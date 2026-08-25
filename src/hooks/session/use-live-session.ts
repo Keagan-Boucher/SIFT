@@ -108,6 +108,10 @@ export function useLiveSession(userId: string | null): SiftSession {
       setListings([]);
       setSearch(null);
 
+      // Consumed on use: once a run is fired with them, the LINKS panel should
+      // empty out rather than keep offering the same URLs for the next retry.
+      setUserSearchUrls({});
+
       createSearch(
         userId,
         query,
