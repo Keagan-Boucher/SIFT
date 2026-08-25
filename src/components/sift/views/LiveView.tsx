@@ -4,6 +4,7 @@ import { CommandHeading } from '@/components/sift/CommandHeading';
 import { CornerBrackets } from '@/components/sift/CornerBrackets';
 import { InsightCard } from '@/components/sift/InsightCard';
 import { PlusGrid } from '@/components/sift/PlusGrid';
+import { ProgressBar } from '@/components/sift/ProgressBar';
 import { ResultTile } from '@/components/sift/ResultTile';
 import { ScanSweep } from '@/components/sift/ScanSweep';
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
@@ -21,12 +22,26 @@ export function LiveView({ flow }: LiveViewProps) {
   const suffix = `${resolved}/${sources.length}`;
   const slotCount = Math.max(0, 4 - tiles.length);
 
+  // What the pipeline is doing right now, so a slow search reads as busy
+  // rather than hung. Locating still means finding the right page; once every
+  // source has one, the wait is for prices to come off it.
+  const locating = sources.filter((s) => s.status === 'PENDING').length;
+  const activity = !running
+    ? ''
+    : locating > 0
+      ? `LOCATING PRODUCT PAGES · ${sources.length - locating}/${sources.length} FOUND`
+      : `PULLING PRICES OFF THE PAGE · ${resolved}/${sources.length} DONE`;
+
   return (
     <View style={styles.wrap}>
       <View style={styles.headingRow}>
         <CommandHeading sigil="//" text={heading} suffix={suffix} />
         <Text style={styles.listenerNote}>FIRESTORE LISTENER · NO MANUAL REFRESH</Text>
       </View>
+
+      {running && (
+        <ProgressBar value={sources.length > 0 ? resolved / sources.length : 0} label={activity} style={styles.progress} />
+      )}
 
       <View style={styles.tileRow}>
         {running && <ScanSweep />}
@@ -66,6 +81,7 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, padding: SiftSpacing.space4, gap: SiftSpacing.space3 },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SiftSpacing.space4 },
   listenerNote: { ...SiftType.annot, color: SiftColors.boneDim },
+  progress: { maxWidth: 420 },
   tileRow: { position: 'relative', flexDirection: 'row', flexWrap: 'wrap', gap: SiftSpacing.space3 },
   tileCol: { gap: 5 },
   tileFooter: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, width: 160 },
