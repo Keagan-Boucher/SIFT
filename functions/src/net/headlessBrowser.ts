@@ -22,13 +22,27 @@ const SETTLE_TIMEOUT_MS = 5_000;
  */
 const SCROLL_STEP_PX = 900;
 const MAX_SCROLL_PX = 6_000;
+/**
+ * A hard ceiling on one render attempt, independent of every timeout inside
+ * it. Those inner timeouts (goto, networkidle) only bound the *page*; they do
+ * nothing if the *browser* itself has gone unresponsive; for example the
+ * shared process surviving a lost network connection in a half-dead state
+ * without erroring. Without this, a single wedged render would hold a
+ * concurrency slot forever, and since the browser is a warm-instance
+ * singleton, every future render on that instance would queue behind it and
+ * hang too, silently, until the whole function is killed by its own timeout.
+ */
+const HARD_DEADLINE_MS = 40_000;
 
 /**
- * A real browser costs far more memory and time than a plain fetch, so only
- * one runs at a time regardless of how many sources are being scraped
- * concurrently. This is a last resort, not a parallel fetch path.
+ * A real browser costs far more memory and time than a plain fetch, so this
+ * is capped well below the plain-fetch concurrency. It is not 1: a browser
+ * *process* is the expensive part, and that is shared and launched once (see
+ * getBrowser below); a *context* within it is cheap, and scrapeSource can now
+ * need more than one per source when the first candidate URL it renders turns
+ * out to be the wrong guess.
  */
-const headlessLimit = pLimit(1);
+const headlessLimit = pLimit(2);
 
 /**
  * One Chromium process is kept alive for the lifetime of the function
@@ -53,6 +67,18 @@ function getBrowser(): Promise<Browser> {
   return browserPromise;
 }
 
+/**
+ * Discards the shared browser so the next render launches a fresh one,
+ * rather than queueing behind a process that has stopped responding. The old
+ * handle is closed in the background: it may itself hang given it is the
+ * thing suspected of being wedged, so nothing here waits on it.
+ */
+function poisonBrowser(): void {
+  const stale = browserPromise;
+  browserPromise = null;
+  stale?.then((browser) => browser.close()).catch(() => {});
+}
+
 export interface RenderResult {
   html: string | null;
   error?: string;
@@ -65,37 +91,71 @@ export interface RenderResult {
  * browser failure is reported the same way a blocked or unreachable page is,
  * as "no HTML", since the caller is already the last resort in the cascade.
  */
+async function attemptRender(url: string): Promise<RenderResult> {
+  let context;
+  try {
+    const browser = await getBrowser();
+    context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1366, height: 1400 } });
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
+    // Not required to succeed: a page whose network never quiets down still
+    // gets read once the budget runs out, rather than failing the render.
+    await page.waitForLoadState("networkidle", { timeout: SETTLE_TIMEOUT_MS }).catch(() => {});
+    // A string body, not a closure: this runs in the page's own browser
+    // context, which has no DOM lib available to this project's tsconfig.
+    await page.evaluate(
+      `(async ({ step, max }) => {
+        for (let scrolled = 0; scrolled < max && scrolled < document.body.scrollHeight; scrolled += step) {
+          window.scrollBy(0, step);
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      })(${JSON.stringify({ step: SCROLL_STEP_PX, max: MAX_SCROLL_PX })})`,
+    );
+    return { html: await page.content() };
+  } catch (error) {
+    logger.warn(`headless render of ${url} failed`, error);
+    return { html: null, error: error instanceof Error ? error.message : "headless render failed" };
+  } finally {
+    await context?.close().catch(() => {});
+  }
+}
+
+/**
+ * Races the actual render against the hard deadline so the concurrency slot
+ * this holds is always freed on time, no matter what the render itself is
+ * doing. If the deadline wins, the render is abandoned (not cancelled: there
+ * is no way to force that on an in-flight browser call) and the browser is
+ * presumed wedged and discarded, so the next attempt gets a clean one.
+ */
+async function renderWithDeadline(url: string): Promise<RenderResult> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timedOut = new Promise<"timed-out">((resolve) => {
+    timer = setTimeout(() => resolve("timed-out"), HARD_DEADLINE_MS);
+  });
+
+  const outcome = await Promise.race([attemptRender(url), timedOut]);
+  clearTimeout(timer!);
+
+  if (outcome === "timed-out") {
+    logger.warn(`headless render of ${url} exceeded its ${HARD_DEADLINE_MS}ms deadline, discarding the browser`);
+    poisonBrowser();
+    return { html: null, error: "headless render exceeded its time budget" };
+  }
+  return outcome;
+}
+
+/**
+ * Tier 5's only job: load `url` in a real browser so client-side JavaScript
+ * runs, then hand back the HTML it produced. Robots.txt is checked first,
+ * same as every other outbound request the scraper makes. Never throws and
+ * never hangs past its deadline: a browser failure is reported the same way
+ * a blocked or unreachable page is, as "no HTML", since the caller is
+ * already the last resort in the cascade.
+ */
 export async function renderPage(url: string): Promise<RenderResult> {
   if (!(await isAllowed(url))) {
     return { html: null, error: "robots.txt disallows this page" };
   }
 
-  return headlessLimit(async () => {
-    let context;
-    try {
-      const browser = await getBrowser();
-      context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1366, height: 1400 } });
-      const page = await context.newPage();
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
-      // Not required to succeed: a page whose network never quiets down still
-      // gets read once the budget runs out, rather than failing the render.
-      await page.waitForLoadState("networkidle", { timeout: SETTLE_TIMEOUT_MS }).catch(() => {});
-      // A string body, not a closure: this runs in the page's own browser
-      // context, which has no DOM lib available to this project's tsconfig.
-      await page.evaluate(
-        `(async ({ step, max }) => {
-          for (let scrolled = 0; scrolled < max && scrolled < document.body.scrollHeight; scrolled += step) {
-            window.scrollBy(0, step);
-            await new Promise((resolve) => setTimeout(resolve, 150));
-          }
-        })(${JSON.stringify({ step: SCROLL_STEP_PX, max: MAX_SCROLL_PX })})`,
-      );
-      return { html: await page.content() };
-    } catch (error) {
-      logger.warn(`headless render of ${url} failed`, error);
-      return { html: null, error: error instanceof Error ? error.message : "headless render failed" };
-    } finally {
-      await context?.close().catch(() => {});
-    }
-  });
+  return headlessLimit(() => renderWithDeadline(url));
 }
