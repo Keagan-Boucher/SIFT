@@ -44,9 +44,14 @@ export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, onPress
         ))}
       </View>
 
-      <Pressable style={styles.sessionWrap} onPress={onPressSession} accessibilityLabel="Account">
-        <Text style={styles.session}>ACCT</Text>
-      </Pressable>
+      {onPressSession ? (
+        <Pressable style={styles.sessionWrap} onPress={onPressSession} accessibilityLabel="Account">
+          <Text style={styles.session}>ACCT</Text>
+        </Pressable>
+      ) : (
+        // The auth screens borrow the rail before there is an account to open.
+        <View style={styles.sessionWrap} />
+      )}
     </View>
   );
 }
