@@ -8,13 +8,12 @@ interface RailProps {
   screenName: string;
   connection?: 'IDLE' | 'LIVE';
   sourceCount?: number;
-  sessionCode: string;
   /** Opens the account panel. The session code is the identity affordance. */
   onPressSession?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
-export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, sessionCode, onPressSession, style }: RailProps) {
+export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, onPressSession, style }: RailProps) {
   return (
     <View style={[styles.rail, style]}>
       <Svg width={22} height={18} viewBox="0 0 89 71" fill="none">
@@ -51,7 +50,7 @@ export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, session
       </View>
 
       <Pressable style={styles.sessionWrap} onPress={onPressSession} accessibilityLabel="Account">
-        <Text style={styles.session}>{sessionCode}</Text>
+        <Text style={styles.session}>ACCT</Text>
       </Pressable>
     </View>
   );

@@ -123,4 +123,3 @@ export const INITIAL_RECENTS: MockRecent[] = [
 export const STREAM_SPEED_MS = 700;
 export const TEACHING_MODE = true;
 export const SHOW_NOTES = true;
-export const SESSION_CODE = 'R991';

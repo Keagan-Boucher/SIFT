@@ -11,7 +11,6 @@ interface AccountPopupProps {
   mode: 'live' | 'demo';
   isGuest: boolean;
   email: string | null;
-  sessionCode: string;
   onClose: () => void;
 }
 
@@ -31,7 +30,7 @@ const COPY: Record<Intent, { heading: string; blurb: string; action: string }> =
   },
 };
 
-export function AccountPopup({ mode, isGuest, email, sessionCode, onClose }: AccountPopupProps) {
+export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProps) {
   const [intent, setIntent] = useState<Intent>('attach');
   const [emailInput, setEmailInput] = useState('');
   const [password, setPassword] = useState('');
@@ -66,7 +65,7 @@ export function AccountPopup({ mode, isGuest, email, sessionCode, onClose }: Acc
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <CommandHeading sigil="//" text="ACCOUNT" suffix={sessionCode} />
+        <CommandHeading sigil="//" text="ACCOUNT" />
         <Pressable onPress={onClose} style={styles.close} accessibilityLabel="Close account panel">
           <Text style={styles.closeLabel}>×</Text>
         </Pressable>

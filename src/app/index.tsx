@@ -15,7 +15,6 @@ import { LiveView } from '@/components/sift/views/LiveView';
 import { ResultsView } from '@/components/sift/views/ResultsView';
 import { SavedView } from '@/components/sift/views/SavedView';
 import { SourcesView } from '@/components/sift/views/SourcesView';
-import { SESSION_CODE } from '@/constants/sift-mock-data';
 import { SiftColors, SiftSpacing } from '@/constants/sift-theme';
 import { useOrientationPolicy } from '@/hooks/use-orientation-policy';
 import { useOrientation } from '@/hooks/use-orientation';
@@ -63,7 +62,6 @@ export default function SiftAppScreen() {
             mode={mode}
             isGuest={isGuest}
             email={accountEmail}
-            sessionCode={SESSION_CODE}
             onClose={actions.toggleAccount}
           />
         </View>
@@ -133,7 +131,6 @@ export default function SiftAppScreen() {
             screenName={railName}
             connection={railConnection}
             sourceCount={sources.length}
-            sessionCode={SESSION_CODE}
             onPressSession={actions.toggleAccount}
           />
           <SavedStrip active={state.screen === 'saved'} hasDrops={hasDrops} onPress={actions.openSaved} />
@@ -158,7 +155,7 @@ export default function SiftAppScreen() {
             </View>
             <SavedPill hasDrops={hasDrops} onPress={actions.openSaved} />
             <Pressable onPress={actions.toggleAccount} accessibilityLabel="Account">
-              <Text style={styles.sessionCode}>{SESSION_CODE}</Text>
+              <Text style={styles.sessionCode}>ACCT</Text>
             </Pressable>
           </View>
         </View>

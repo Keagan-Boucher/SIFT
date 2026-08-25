@@ -2,7 +2,6 @@ import { useCallback, useMemo } from 'react';
 
 import { SiftColors } from '@/constants/sift-theme';
 import { fmtPrice } from '@/lib/format-price';
-import { SESSION_CODE } from '@/constants/sift-mock-data';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { useDemoSession } from '@/hooks/session/use-demo-session';
@@ -92,7 +91,7 @@ export function useSiftFlow() {
   const dismissNote = useCallback(
     (id: string) => {
       const note = session.notes.find((n) => n.id === id);
-      if (note) state.archive(note, `SESSION ${SESSION_CODE}`);
+      if (note) state.archive(note, 'THIS SESSION');
     },
     [session.notes, state],
   );
@@ -269,7 +268,7 @@ export function useSiftFlow() {
               ? `, LOWEST OF ${tiles.length}`
               : `, ${Math.round(((selectedTile.value - cheapest.value) / cheapest.value) * 100)}% ABOVE LOWEST`),
           confidenceLine: `${selectedTile.confidence}/4`,
-          checked: `SESSION ${SESSION_CODE}`,
+          checked: 'THIS SESSION',
           issue: !!selectedTile.issue,
         }
       : null;
@@ -391,8 +390,8 @@ export function useSiftFlow() {
       resultInsight,
       resultMetadata,
       spreadPoints: sorted.map((tile) => ({ value: tile.value, priceLabel: tile.price, label: tile.retailer.toUpperCase() })),
-      spreadLabel: `SPREAD ${SESSION_CODE} · ${spread}% · N=${tiles.length} · TIERS ${tiles.map((tile) => `T${tile.tier}`).join(' ')}`,
-      resultSuffix: `${SESSION_CODE}_${tiles.length}_PRICES`,
+      spreadLabel: `SPREAD · ${spread}% · N=${tiles.length} · TIERS ${tiles.map((tile) => `T${tile.tier}`).join(' ')}`,
+      resultSuffix: `${tiles.length}_PRICES`,
       archiveLabeled: dismissed.map((note) => ({
         ...note,
         label: (note.kind === 'prompt' ? '>' : note.kind === 'drop' ? '//' : '!') + note.heading,

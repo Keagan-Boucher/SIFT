@@ -40,7 +40,7 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
 
   const queryBlock = (
     <View style={styles.queryCol}>
-      <CommandHeading sigil="//" text="QUERY" suffix="R991" />
+      <CommandHeading sigil="//" text="QUERY" />
       <View style={styles.queryBox}>
         <TextInput
           value={state.query}
