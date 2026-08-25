@@ -1,8 +1,8 @@
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
+import { SiftMark } from './SiftMark';
 
 interface RailProps {
   screenName: string;
@@ -16,12 +16,7 @@ interface RailProps {
 export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, onPressSession, style }: RailProps) {
   return (
     <View style={[styles.rail, style]}>
-      <Svg width={22} height={18} viewBox="0 0 89 71" fill="none">
-        <Path
-          d="M29.8428 36.1963V71H14.8428V27.1836L29.8428 36.1963ZM51.8428 49.415V71H36.8428V40.4014L51.8428 49.415ZM73.8428 62.6338V71H58.8428V53.6211L73.8428 62.6338ZM84.6553 51.9561C88.14 54.0499 89.2676 58.5719 87.1738 62.0566C85.08 65.5414 80.558 66.669 77.0732 64.5752L73.8428 62.6338V45.458L84.6553 51.9561ZM58.8428 36.4453V53.6211L51.8428 49.415V32.2393L58.8428 36.4453ZM73.8428 45.458L58.8428 36.4453V0H73.8428V45.458ZM36.8428 23.2266V40.4014L29.8428 36.1963V19.0205L36.8428 23.2266ZM51.8428 32.2393L36.8428 23.2266V0H51.8428V32.2393ZM1.05272 10.3096C3.14665 6.82509 7.66865 5.69731 11.1533 7.79102L14.8428 10.0078V27.1836L3.5703 20.4111C0.0856476 18.3172 -1.04111 13.7943 1.05272 10.3096ZM29.8428 19.0205L14.8428 10.0078V0H29.8428V19.0205Z"
-          fill={SiftColors.bone}
-        />
-      </Svg>
+      <SiftMark width={22} />
 
       <View style={styles.screenNameWrap}>
         <Text style={styles.screenName} numberOfLines={1}>
