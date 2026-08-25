@@ -19,6 +19,8 @@ export interface SiftSession {
   candidates: CandidateView[];
   /** Notes raised by the backend: blocked sources, low-confidence matches, drops. */
   notes: NoteView[];
+  /** Search URLs staged for FAILED sources via provideSearchUrl, keyed by domain, waiting on the next runSearch. */
+  stagedUrls: Record<string, string>;
   /** Lowest price per check for the watched search, oldest first. */
   history: number[];
 
@@ -30,9 +32,9 @@ export interface SiftSession {
   resetSources: () => void;
   runSearch: (query: string) => void;
   /**
-   * Method D: a search URL the user pasted for one domain resolution could
-   * not work out on its own. Re-runs the search immediately with it, and
-   * keeps it for any further re-run of the same sources.
+   * Method D: stages a search URL pasted for one domain resolution could not
+   * work out on its own. Several can be staged before the next runSearch
+   * picks them all up together.
    */
   provideSearchUrl: (domain: string, url: string) => void;
   cancelSearch: () => void;

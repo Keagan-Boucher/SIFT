@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useDemoSession } from '@/hooks/session/use-demo-session';
 import { useLiveSession } from '@/hooks/session/use-live-session';
 import { useFlowStore, type Screen } from '@/store/useFlowStore';
+import type { NoteView } from '@/types/view';
 
 export type { Screen };
 
@@ -125,7 +126,15 @@ export function useSiftFlow() {
     const { tiles, sources, saved, recents, candidates, running, complete, history } = session;
 
     const dismissedIds = new Set(dismissed.map((note) => note.id));
-    const notes = session.notes.filter((note) => !dismissedIds.has(note.id));
+    // Staged links surface the same way as a note: a stacked banner cascade
+    // confirming what RETRY SEARCH will actually retry, not just a count.
+    const stagedNotes: NoteView[] = Object.entries(session.stagedUrls).map(([domain, url]) => ({
+      id: `staged-${domain}`,
+      kind: 'prompt',
+      heading: 'LINK_ADDED',
+      body: `${domain}: ${url}`,
+    }));
+    const notes = [...session.notes.filter((note) => !dismissedIds.has(note.id)), ...stagedNotes];
 
     const resolved = tiles.length;
     const sorted = [...tiles].sort((a, b) => a.value - b.value);

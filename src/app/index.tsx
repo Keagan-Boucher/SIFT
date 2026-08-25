@@ -46,7 +46,7 @@ export default function SiftAppScreen() {
       body={n.body}
       retryable={n.retryable}
       onRetry={n.domain ? () => actions.openRetry(n.domain as string) : undefined}
-      onDismiss={() => actions.dismissNote(n.id)}
+      onDismiss={n.id.startsWith('staged-') ? undefined : () => actions.dismissNote(n.id)}
     />
   ));
 

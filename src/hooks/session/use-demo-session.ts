@@ -229,6 +229,7 @@ export function useDemoSession(): SiftSession {
       recents: INITIAL_RECENTS,
       candidates: CANDIDATES,
       notes: state.notes,
+      stagedUrls: {},
       history: HISTORY,
       running: state.running,
       complete: state.complete,
