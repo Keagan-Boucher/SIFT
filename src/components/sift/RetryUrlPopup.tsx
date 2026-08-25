@@ -47,7 +47,7 @@ export function RetryUrlPopup({ domain, onSubmit, onClose }: RetryUrlPopupProps)
           onSubmitEditing={() => canSubmit && onSubmit(url)}
         />
         <Button variant="primary" disabled={!canSubmit} onPress={() => onSubmit(url)}>
-          RETRY
+          ADD LINK
         </Button>
       </View>
     </View>

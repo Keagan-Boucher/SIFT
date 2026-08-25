@@ -77,9 +77,9 @@ export async function recheck(db: Firestore, snapshot: DocumentSnapshot): Promis
 
 /** Re-runs one watched search now instead of waiting for the nightly sweep. */
 export const recheckSavedSearch = onCall<{ savedSearchId: string }, Promise<RecheckResult>>(
-  // 1GiB, up from 512MiB: scrapeSource can now launch a headless Chromium
-  // render (Tier 5) for a client-rendered source.
-  { timeoutSeconds: 300, memory: "1GiB" },
+  // 2GiB: shares scrapeSource with onSearchCreated, so it has the same peak
+  // of several fetched pages plus a rendered one alongside a live Chromium.
+  { timeoutSeconds: 300, memory: "2GiB" },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "sign in to check a saved search");
 
@@ -102,8 +102,21 @@ export const recheckSavedSearch = onCall<{ savedSearchId: string }, Promise<Rech
  * so a watch that only updates when the user opens the app is not a watch.
  */
 export const scheduledRecheck = onSchedule(
-  // 1GiB, up from 512MiB: same headless-render path as recheckSavedSearch.
-  { schedule: "0 3 * * *", timeZone: "Africa/Johannesburg", timeoutSeconds: 540, memory: "1GiB" },
+  // 2GiB: same headless-render path and the same memory peak.
+  //
+  // The one function not in africa-south1 with the rest. Cloud Scheduler has no
+  // presence in Johannesburg yet and rejects the region outright, so the cron
+  // runs from europe-west1 instead. It only costs cross-region Firestore reads
+  // once a night, and unlike onSearchCreated this is not a Firestore trigger,
+  // so it has no obligation to sit in the database's region. The schedule stays
+  // on Africa/Johannesburg time regardless of where it runs.
+  {
+    region: "europe-west1",
+    schedule: "0 3 * * *",
+    timeZone: "Africa/Johannesburg",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+  },
   async () => {
     const db = getFirestore();
     const snapshot = await db.collection("savedSearches").limit(MAX_SAVED_SEARCHES_PER_SWEEP).get();

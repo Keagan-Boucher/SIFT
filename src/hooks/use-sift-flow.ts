@@ -38,7 +38,7 @@ export function useSiftFlow() {
   // Live only once there is a project and a signed-in uid to own the documents.
   const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
 
-  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, openRetry, closeRetry } = state;
+  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry } = state;
   const chooseRecent = setQuery;
   const selectTile = useCallback((index: number) => state.select(index), [state]);
   const closeListing = useCallback(() => state.select(null), [state]);
@@ -71,16 +71,15 @@ export function useSiftFlow() {
     setScreen('live');
   }, [session, state, setScreen]);
 
-  /** Method D: retries one FAILED source with a search URL the user pasted for it. */
+  // Method D: stages a search URL pasted for one FAILED source. Multiple
+  // sources can each get one before retrying, so this only closes the popup;
+  // runSearch (the existing RETRY SEARCH action) is what re-runs with them.
   const submitRetryUrl = useCallback(
     (domain: string, url: string) => {
       session.provideSearchUrl(domain, url.trim());
       closeRetry();
-      state.select(null);
-      state.choose(0);
-      setScreen('live');
     },
-    [session, closeRetry, state, setScreen],
+    [session, closeRetry],
   );
 
   const backToSourcesFromLive = useCallback(() => {
@@ -122,11 +121,19 @@ export function useSiftFlow() {
   const checkAll = useCallback(() => session.checkAllSaved(), [session]);
 
   const derived = useMemo(() => {
-    const { screen, selected, chosen, dismissed, showArchive, showAccount } = state;
+    const { screen, selected, chosen, dismissed, showArchive, showAccount, showLinks } = state;
     const { tiles, sources, saved, recents, candidates, running, complete, history } = session;
 
     const dismissedIds = new Set(dismissed.map((note) => note.id));
     const notes = session.notes.filter((note) => !dismissedIds.has(note.id));
+
+    // Collapsed behind its own chip, same shape AlertLogPopup already renders.
+    const stagedLinks = Object.entries(session.stagedUrls).map(([domain, url]) => ({
+      id: `staged-${domain}`,
+      label: '>LINK_ADDED',
+      stamp: domain,
+      body: url,
+    }));
 
     const resolved = tiles.length;
     const sorted = [...tiles].sort((a, b) => a.value - b.value);
@@ -183,12 +190,23 @@ export function useSiftFlow() {
         secondaryAction: resetSources,
       },
       live: {
-        primaryLabel: !complete ? 'SEARCH RUNNING' : selectedIssue ? 'RESOLVE ISSUE' : 'CONFIRM MATCHES',
+        primaryLabel: !complete
+          ? 'SEARCH RUNNING'
+          : selectedIssue
+            ? 'RESOLVE ISSUE'
+            : stagedLinks.length > 0
+              ? 'RETRY SEARCH'
+              : 'CONFIRM MATCHES',
         primaryAction: () => {
           if (selectedIssue && selectedTile) openConfirm(selectedTile.domain);
+          else if (stagedLinks.length > 0) runSearch();
           else setScreen('results');
         },
-        primaryDisabled: !complete || (!selectedIssue && openIssues > 0),
+        // RETRY SEARCH doesn't need confirm-match issues resolved first, they're
+        // unrelated problems. With nothing staged there is nothing to retry, so
+        // this is CONFIRM MATCHES again and its original gate applies as before:
+        // a FAILED source alone (no link given for it yet) still needs that.
+        primaryDisabled: !complete || (!selectedIssue && stagedLinks.length === 0 && openIssues > 0),
         secondaryLabel: 'BACK',
         secondaryAction: backToSourcesFromLive,
       },
@@ -355,6 +373,10 @@ export function useSiftFlow() {
       hasDrops: droppedCount > 0,
       showArchive,
       showAccount,
+      showLinks,
+      hasLinks: stagedLinks.length > 0,
+      linksCount: stagedLinks.length,
+      stagedLinks,
       accountEmail: auth.user?.email ?? null,
       sourceCountLabel: String(sources.length).padStart(2, '0'),
       recentCount: String(recents.length).padStart(2, '0'),
@@ -411,6 +433,7 @@ export function useSiftFlow() {
       dismissNote,
       toggleArchive,
       toggleAccount,
+      toggleLinks,
       openRetry,
       closeRetry,
       submitRetryUrl,

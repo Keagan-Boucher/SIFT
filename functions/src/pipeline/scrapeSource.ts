@@ -21,8 +21,17 @@ const MAX_CANDIDATE_URLS = 5;
 /**
  * A headless render costs far more than a plain fetch, so far fewer of the
  * resolution's guesses are worth rendering than are worth plain-fetching.
+ *
+ * Two, not three, and the arithmetic is the reason. A render that never finds
+ * anything spends its whole content budget before giving up, so this number
+ * multiplies the worst case directly, and onSearchCreated only has 300s to
+ * spend on every source in the search. Three renders plus the plain-fetch
+ * passes ahead of them ran past that ceiling and the trigger was killed
+ * mid-source, which reports nothing at all rather than reporting a failure.
+ * Two still covers the case this exists for: on evetech.co.za the first
+ * guess (?q=) is wrong and the second (?query=) is the one that works.
  */
-const MAX_HEADLESS_CANDIDATE_URLS = 3;
+const MAX_HEADLESS_CANDIDATE_URLS = 2;
 
 /**
  * A results page whose best match scores below this does not contain the

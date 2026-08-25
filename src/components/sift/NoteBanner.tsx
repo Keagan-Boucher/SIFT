@@ -21,7 +21,8 @@ interface NoteBannerProps {
   kind: NoteKind;
   heading: string;
   body: string;
-  onDismiss: () => void;
+  /** Omitted for a note with nothing to dismiss, e.g. a staged-link confirmation. */
+  onDismiss?: () => void;
   /** Set alongside onRetry to show the "paste a search URL" action. */
   retryable?: boolean;
   onRetry?: () => void;
@@ -44,9 +45,11 @@ export function NoteBanner({ kind, heading, body, onDismiss, retryable, onRetry,
           <Text style={[styles.retryLabel, { color }]}>PASTE URL</Text>
         </Pressable>
       )}
-      <Pressable onPress={onDismiss} style={[styles.dismiss, { backgroundColor: color }]}>
-        <Text style={styles.dismissLabel}>×</Text>
-      </Pressable>
+      {onDismiss && (
+        <Pressable onPress={onDismiss} style={[styles.dismiss, { backgroundColor: color }]}>
+          <Text style={styles.dismissLabel}>×</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

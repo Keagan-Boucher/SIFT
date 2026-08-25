@@ -108,6 +108,10 @@ export function useLiveSession(userId: string | null): SiftSession {
       setListings([]);
       setSearch(null);
 
+      // Consumed on use: once a run is fired with them, the LINKS panel should
+      // empty out rather than keep offering the same URLs for the next retry.
+      setUserSearchUrls({});
+
       createSearch(
         userId,
         query,
@@ -122,14 +126,12 @@ export function useLiveSession(userId: string | null): SiftSession {
 
   const runSearch = useCallback((query: string) => startSearch(query, userSearchUrls), [startSearch, userSearchUrls]);
 
-  const provideSearchUrl = useCallback(
-    (domain: string, url: string) => {
-      const urls = { ...userSearchUrls, [domain]: url };
-      setUserSearchUrls(urls);
-      startSearch(activeQuery, urls);
-    },
-    [userSearchUrls, activeQuery, startSearch],
-  );
+  // Stages the URL only: retrying immediately would mean submitting one of
+  // several FAILED sources' URLs re-runs the search before the rest are in.
+  // runSearch (or another provideSearchUrl call) picks up everything staged.
+  const provideSearchUrl = useCallback((domain: string, url: string) => {
+    setUserSearchUrls((urls) => ({ ...urls, [domain]: url }));
+  }, []);
 
   const confirmCandidate = useCallback(
     (index: number) => {
@@ -234,6 +236,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       recents: recentDocs.slice(0, 4).map(recentLabel),
       candidates: toCandidateViews(listings.find((item) => item.retailerDomain === confirmDomain) ?? null),
       notes,
+      stagedUrls: userSearchUrls,
       history,
       running: !!running,
       complete: search?.status === 'complete' || search?.status === 'failed',
@@ -257,6 +260,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       recentDocs,
       confirmDomain,
       notes,
+      userSearchUrls,
       history,
       running,
       search?.status,

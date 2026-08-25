@@ -17,7 +17,7 @@
 
 [![Platforms](https://img.shields.io/badge/platforms-iOS_·_Android_·_Web-lightgrey)](#5-run-the-app)
 [![Orientation](https://img.shields.io/badge/orientation-landscape_first-3FE383)](#landscape-support)
-[![Tests](https://img.shields.io/badge/extraction_tests-11_passing-3FE383?logo=nodedotjs&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/backend_tests-62_passing-3FE383?logo=nodedotjs&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/licence-AGPLv3-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/status-in_development-F0552E)](#project-status)
 
@@ -75,7 +75,7 @@ The project is built against three fixed inspiration cards, and every major deci
 
 ### Implemented
 
-- **Source management.** Add retailer domains, see per-source status (`PENDING`, `RESOLVED`, `BLOCKED`) and remove sources that cannot be scraped.
+- **Source management.** Add retailer domains, see per-source status (`PENDING`, `RESOLVING`, `RESOLVED`, `BLOCKED`, `FAILED`) and remove sources that cannot be scraped.
 - **Live results stream.** Result tiles arrive one per source as each resolves, with a scanning sweep and a live progress bar.
 - **Confirm matches.** When match confidence drops below threshold, the user picks the right listing from candidate cards instead of getting the wrong product.
 - **Results grid.** Every resolved listing with price, retailer, extraction tier and confidence, lowest price flagged.
@@ -86,6 +86,7 @@ The project is built against three fixed inspiration cards, and every major deci
 - **Extraction pipeline.** JSON-LD, Open Graph, microdata and heuristic HTML parsing, covered by unit tests against real and synthetic fixtures.
 - **Headless rendering fallback.** A client-rendered storefront is rendered in a real headless Chromium browser before the same parsers run against the result, reached only once the plain-fetch tiers have both failed.
 - **Full resolution cascade.** Registry lookup, generic search-form discovery, platform fingerprinting for nine ecommerce platforms, and a user-pasted search URL as the last resort. Everything discovered is written back to the shared registry.
+- **Paste-a-search-URL recovery.** A `FAILED` source's alert carries a `PASTE URL` action. The pasted URL is staged rather than fired immediately, so every failed source can be given one before a single retry runs, and the staged set is collapsed behind its own `LINKS [n]` panel in the action bar.
 - **Match confidence scoring.** Query tokens containing digits are weighted double, since those separate a variant from its siblings, and accessory listings are penalised. Below 60% the user is asked to pick.
 - **Server-side pipeline.** A Firestore trigger resolves, fetches, extracts and scores every source, four at a time with one request per host, republishing per-source state as each one lands.
 - **Politeness layer.** robots.txt is fetched and obeyed before any request, cached per origin, with per-host rate limiting and an honest user agent.
@@ -94,10 +95,8 @@ The project is built against three fixed inspiration cards, and every major deci
 
 ### Planned
 
-- Extraction tiers 1 and 2, official APIs and internal JSON endpoints (stubbed, per-retailer work)
-- Push notifications on price drops
-- Selection weighting, where the candidate a user confirms informs future ranking
-- EAS Build and submission to the App Store and Play Store
+- Extraction tiers 1 and 2, official APIs and internal JSON endpoints (stubbed, per-retailer work that scales badly, so deliberately scoped out)
+- Submission to the App Store and Play Store. EAS build profiles exist in `eas.json`; no store build has been submitted
 
 ---
 
@@ -119,6 +118,7 @@ flowchart LR
             T[onSearchCreated]
             C[confirmMatch]
             S[scheduledRecheck]
+            RC[recheckSavedSearch]
         end
     end
 
@@ -132,9 +132,14 @@ flowchart LR
     T -->|template write-back| FS
     S -->|price points| FS
     UI -->|callable| C --> FS
+    UI -->|callable| RC --> FS
     FS -->|onSnapshot stream| Store --> UI
     Auth --- UI
 ```
+
+Six functions deploy. `onSearchCreated` is the Firestore trigger that does the work; `confirmMatch` and `recheckSavedSearch` are callables the app invokes directly; `scheduledRecheck` is the nightly cron. `resolveListingUrl` and `extractListing` are single-stage callables exposed for testing one half of the pipeline in isolation, not used by the app's main flow.
+
+Five of the six sit in `africa-south1` alongside Firestore, which a Firestore trigger requires and which puts every read and write in-region. `scheduledRecheck` is the exception: **Cloud Scheduler has no Johannesburg presence** and rejects the region outright, so the cron runs from `europe-west1`. That costs cross-region Firestore reads once a night, and unlike `onSearchCreated` it is not a Firestore trigger, so nothing obliges it to sit with the database. Its schedule stays on `Africa/Johannesburg` time regardless of where it runs.
 
 The pipeline is deliberately split in two. Resolution answers _which page_, extraction answers _what is on it_. Conflating them produces a scraper that only works if the user already found the product themselves.
 
@@ -164,28 +169,36 @@ That validation is what makes the write-back safe, and it is measurable: the fir
 Tiers 3-5 are fully generic and need no per-retailer configuration, which is what keeps the any-site promise intact. Tier 5 is the most expensive rung on the ladder, a real headless Chromium browser rather than a fetch, so it only runs once tiers 3 and 4 have both come back empty and the page looks client-rendered. Tiers 1 and 2 are per-retailer work that scales badly, so they are scoped out of the MVP and stubbed in place.
 
 > [!IMPORTANT]
-> **Where the scraper runs decides whether it works.** This is the single biggest constraint on the project, and it is not a code problem.
+> **Where the scraper runs changes what it can reach, and how fast.** This drove the choice of region, and it was measured rather than assumed.
 >
-> The same query, the same code, the same rules, run against `geekhome.co.za`:
+> An earlier run against `geekhome.co.za` from `europe-west1` was refused at the transport layer: `TCP reset. The site refused the connection`, where the same query from a home connection returned `form-discovery`, 12 candidates, top match **100%**, `MTG Teenage Mutant Ninja Turtles Bundle` at **R2 300**, in 2 seconds. That looked like a permanent block on datacentre address space.
 >
-> | Egress | Result |
-> | --- | --- |
-> | Home connection, via the local emulator suite | `form-discovery`, 12 candidates, top match **100%**, `MTG Teenage Mutant Ninja Turtles Bundle` at **R2 300**, in 2 seconds |
-> | Cloud Functions in `europe-west1` | TCP reset. `The site refused the connection` |
+> Re-testing later with identical probes deployed side by side in both regions did not reproduce it. Both regions were served, with byte-identical responses, so **the refusal was transient rather than structural**. Retailer bot rules change, and a single failed measurement is not a standing property of the site.
 >
-> Small retailers block foreign and datacentre traffic outright, and Cloudflare returns `403` to the same ranges. So **run the emulator suite locally to scrape South African retailers**, which is what `docker compose up` is for. The deployed functions still serve everything else, and everything except the outbound request behaves identically either way.
+> What did reproduce, consistently across four trials, is latency:
+>
+> | Target | `africa-south1` | `europe-west1` |
+> | --- | --- | --- |
+> | `geekhome.co.za/` | 200, ~45ms | 200, ~1350ms |
+> | `geekhome.co.za/search?q=…` | 200, ~25ms | 200, ~840ms |
+> | `evetech.co.za/search?query=…` | 200, ~170ms | 200, ~700ms |
+>
+> Roughly **4x to 30x**, for the same bytes. The pipeline fetches up to five candidate URLs per source, serially and rate-limited to one request per host, so that gap compounds across a single search. Firestore and every function except the nightly cron therefore live in `africa-south1`.
+>
+> The local emulator path still matters, both because a home connection is the fallback if a retailer does start refusing datacentre ranges, and because tier 5 currently extracts more reliably there than in production. See the limitations below.
 
 > [!NOTE]
-> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Four things stop that working, and all four were hit against real retailers rather than found in theory.
+> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Five things stop that working, and all five were hit against real retailers rather than found in theory.
 >
 > | Limitation | What happens | The fix, and where it sits |
 > | --- | --- | --- |
 > | Client-rendered storefronts | The page is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Tier 5 headless rendering, implemented. Costs a browser rather than a fetch, so it only runs as the last resort |
-> | Datacentre IP blocking | `403` from Cloudflare, or a TCP reset, for a request that succeeds from a home connection. | Run the pipeline locally, as above. Applies to the headless render too |
-> | robots.txt on search paths | Many storefronts allow `/` and disallow `/search`. That is a refusal, and SIFT honours it. | Nothing to fix. The source is reported `BLOCKED` |
+> | Headless is slow, and slower deployed | A render costs a Chromium launch plus however long the page needs, and a wrong guess spends its whole content budget before giving up. Deployed, one source can take ~50s across two candidate URLs against ~6s in the emulator. | Bounded by a hard per-render deadline, and capped at two candidate URLs so a source cannot outlive the trigger's own 300s. Accepted cost of the last resort |
+> | Datacentre IP blocking | Was hit once as a TCP reset from `europe-west1`, and did not reproduce on re-test from either region. Cloudflare can also return `403` to hosting ranges. | Treat as possible rather than certain. A home connection via the emulator is the fallback if it returns |
+> | robots.txt on search paths | Many storefronts allow `/` and disallow `/search`. That is a refusal, and SIFT honours it, including for a URL the user pasted themselves. | Nothing to fix. The source is reported `BLOCKED` |
 > | Niche catalogues | The shop simply does not stock the product, and its search returns unrelated items. | Nothing to fix. Reported as such rather than as a failure |
 >
-> Each is reported by name rather than as a generic failure, because "the site refused us from a datacentre", "the site is slow", "that domain does not exist" and "this shop does not stock it" need four different responses from the user.
+> Each is reported by name rather than as a generic failure, because "the site refused us from a datacentre", "the site is slow", "that domain does not exist" and "this shop does not stock it" each need a different response from the user.
 
 ### Scraping ethics
 
@@ -206,7 +219,7 @@ Two details matter more than they look:
 | Framework       | React Native 0.86 via Expo SDK 57              | Single codebase for iOS, Android and web                                    |
 | Navigation      | Expo Router                                    | File-based routing with typed routes                                        |
 | State           | Zustand                                        | Small store, no Redux boilerplate                                           |
-| Orientation     | expo-screen-orientation                        | Landscape lock, with `useWindowDimensions` driving layout switching         |
+| Orientation     | expo-screen-orientation                        | Rotation explicitly unlocked, with `useWindowDimensions` driving layout switching |
 | Typography      | Big Shoulders Display, JetBrains Mono, Archivo | Display, data and longform roles kept visually distinct                     |
 | Graphics        | react-native-svg, expo-linear-gradient         | Dot matrix, sweeps, ladders and charts                                      |
 | Motion          | react-native-reanimated 4                      | Scan sweep and streaming transitions                                        |
@@ -235,7 +248,7 @@ Two details matter more than they look:
 | Docker Desktop | Latest  | Runs the Firebase Emulator Suite. Only needed for the backend |
 | Git            | Any     |                                                               |
 | Expo Go        | Latest  | On a phone, if testing on a physical device                   |
-| Java 17 JRE    | -       | Only if running the emulators outside Docker                  |
+| Java 21 JRE    | -       | Only if running the emulators outside Docker. firebase-tools 15 refuses anything older |
 
 Xcode is needed for the iOS simulator (macOS only) and Android Studio for the Android emulator. Neither is required if you test in a browser or in Expo Go.
 
@@ -306,7 +319,7 @@ Firestore rules and indexes are applied from `firestore.rules` and `firestore.in
 <details>
 <summary><b>Running the emulators without Docker</b></summary>
 
-Install the Firebase CLI and a Java 17 JRE, then:
+Install the Firebase CLI and a Java 21 JRE, then:
 
 ```bash
 npm install -g firebase-tools
@@ -421,6 +434,8 @@ Type a product query, then add the retailer domains to search. Pasted URLs are s
 
 Result tiles stream in one per source as it resolves. The rail shows a `LIVE` indicator, the status line counts resolved sources, and any tile that matched below confidence threshold is flagged for review. Selecting a tile opens its listing detail: URL, resolution method, stock, price position relative to the lowest, and the confidence score out of four.
 
+A source that could not be read reports why, and its alert offers `PASTE URL`: search that retailer yourself, paste the URL of its results page, and the route is staged rather than retried on the spot. Several failed sources can each be given one, reviewed in the `LINKS [n]` panel, and picked up together by a single `RETRY SEARCH`. A pasted route that works is written back to the registry, so the domain resolves on its own from then on.
+
 ### 3. Confirm matches
 
 Where confidence was low, candidate listings are shown side by side with title, price and confidence. Picking one rewrites that tile in place and clears the review prompt into the alert log. This is what stops the app confidently comparing the wrong product.
@@ -472,6 +487,7 @@ erDiagram
         string query
         string status "pending resolving extracting complete failed"
         array sources "domain status method reason"
+        map userSearchUrls "domain to pasted search URL"
         number resolvedCount
         Timestamp createdAt
         Timestamp updatedAt
@@ -487,7 +503,7 @@ erDiagram
         boolean inStock
         number matchConfidence
         number confidenceBadge "1 to 4"
-        number extractionTier "1 to 4"
+        number extractionTier "1 to 5"
         boolean needsConfirmation
         boolean confirmedByUser
         array candidates "runners-up for the confirm step"
@@ -522,13 +538,13 @@ erDiagram
 
 Security rules in [`firestore.rules`](firestore.rules) scope `users`, `searches` and `savedSearches` to their owner. A search is create-then-read-only for the client, since everything after creation is written by the pipeline. `listings` are readable only by the owner of their parent search and never client-writable, so the confirm step has to go through the callable. `retailerTemplates` are readable by any signed-in user, because that is the point of write-back: a site solved once is solved for everyone after.
 
-Composite indexes back the sorted listing query, both per-user listings, and the price history series.
+Four composite indexes back the queries that need them: listings sorted by price within a search, a user's searches newest first, a user's saved searches by last update, and the price history series in observation order.
 
 ---
 
 ## Testing
 
-Scraping is the part most likely to break silently, so it is covered by 49 tests against twelve HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
+Scraping is the part most likely to break silently, so it is covered by 62 tests against fourteen HTML fixtures, including a real retailer page saved from `books.toscrape.com` and a client-rendered page with no prices in the markup.
 
 ```bash
 npm test --prefix functions
@@ -539,10 +555,32 @@ npm test --prefix functions
 | `extraction` | JSON-LD products, products nested in `@graph`, Open Graph price meta, microdata, heuristic parsing with no price class, candidate extraction from an `ItemList` and from repeated cards, and correct `null` returns when a page carries nothing extractable |
 | `resolution` | Search-form discovery including hidden scope fields and skipped POST forms, platform fingerprinting, template building and validation, and turning a user-pasted URL into a reusable template |
 | `matching` | Exact matches, wrong storage variants, accessories that match the query word for word, and the confidence-to-badge mapping |
+| `headless` | Tier 5's wiring around the browser: a failed render returning nothing, a rendered page being handed to the same tier 3-4 parsers, and results tagged tier 5. The browser itself is not launched here, since `@sparticuz/chromium` ships a Linux-only binary and this suite also runs on Windows |
 | `net` | Telling a mistyped domain, a refused connection, a certificate problem and a genuine timeout apart, and the www fallback for three-label ccTLD domains |
 | `pipeline` | The whole scrape end to end against a local HTTP server: robots.txt fetched first and obeyed (including after a redirect to a stricter host), the search URL derived from the homepage, a URL that just returns the homepage rejected, the results page parsed, and each failure mode reporting its own reason |
 
 The pipeline suite runs without Firebase, which also proves the registry degrades rather than throwing when Firestore is unavailable.
+
+### Smoke-testing the deployed backend
+
+The unit suites never touch the network or a browser, so they cannot tell you whether what is deployed actually works. This does: it signs in anonymously, writes a real search document and waits for the trigger to resolve, scrape and score it, exactly as the app would.
+
+```bash
+node scripts/smoke-production.mjs evetech.co.za "ddr4 ram"
+```
+
+```
+     5s  extracting · RESOLVING
+    26s  complete · RESOLVED
+
+  tier 5 · ZAR 1599 · confidence 0.67
+  klevv-bolt-x-8gb-ddr4-3200-memory
+  5 runners-up, method registry
+```
+
+It always talks to the deployed project, whatever `EXPO_PUBLIC_USE_FIREBASE_EMULATOR` is set to, since the point is to check production. Exit code is 0 on `complete` and 1 on `failed`, so it works in CI.
+
+Two arguments worth keeping to hand: `evetech.co.za "ddr4 ram"` exercises the whole cascade down to a tier 5 headless render, and `scrapeme.live charjabug` resolves in about five seconds on tier 3 without a browser, which is the quicker check that the backend is up at all.
 
 Lint the app with:
 
@@ -558,7 +596,7 @@ npm run lint
 SIFT/
 ├── src/
 │   ├── app/                   Expo Router screens (_layout, index)
-│   ├── components/sift/       23 design-system components
+│   ├── components/sift/       25 design-system components
 │   │   └── views/             The six screen views
 │   ├── constants/
 │   │   ├── sift-theme.ts      Design tokens, single source of truth
@@ -573,16 +611,16 @@ SIFT/
 │   ├── store/                 Zustand flow store (UI state only)
 │   └── types/                 Firestore document types and view model types
 ├── functions/src/
-│   ├── net/                   robots.txt, rate limiting, the single outbound fetch
+│   ├── net/                   robots.txt, rate limiting, outbound fetch, headless browser
 │   ├── resolution/            Stage 1: registry, form discovery, platform patterns
-│   ├── extraction/            Stage 2: the four-tier cascade and candidate extraction
+│   ├── extraction/            Stage 2: the five-tier cascade and candidate extraction
 │   ├── matching/              Match confidence scoring
 │   ├── pipeline/              Search orchestration, confirm-match, scheduled rechecks
 │   ├── types/                 Shared backend types
 │   └── index.ts               Function exports
 ├── assets/                    Icons, splash, tab imagery
 ├── docker-compose.yml         Emulator suite
-├── Dockerfile.emulators       Node 20, Java 17, firebase-tools
+├── Dockerfile.emulators       Node 20, JDK 21, firebase-tools, Chromium libraries
 ├── firebase.json              Emulator ports, rules, function config
 ├── firestore.rules            Security rules
 └── firestore.indexes.json     Composite indexes
@@ -623,11 +661,12 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Firebase Auth with guest upgrade         |       Complete       |
 | Frontend wired to live Firestore         |       Complete       |
 | Deployed and verified against live sites |       Complete       |
+| Firestore and functions in `africa-south1` | Complete. Cron stays in `europe-west1`, Cloud Scheduler has no Johannesburg region |
 | Firestore schema, rules, indexes         |       Complete       |
 | Docker emulator environment              |       Complete       |
 | EAS build profiles                       |       Complete       |
+| Paste-a-search-URL recovery and staged links | Complete         |
 | Extraction tiers 1 and 2                 | Future consideration |
-| Push notifications on price drops        |       Planned        |
 | Store submission                         |       Planned        |
 
 ---
@@ -636,11 +675,11 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 
 | Contributor                                                         | Role                        | Contributions                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Keagan Boucher** ([@KeaganCB-OW](https://github.com/KeaganCB-OW)) | Sole developer and designer | Concept and pitch, SIFT design system and tokens, all six screens and 23 components, flow state machine, landscape and portrait layouts, Firestore schema and security rules, resolution and extraction pipelines, extraction test suite, Docker emulator environment, documentation |
+| **Keagan Boucher** ([@KeaganCB-OW](https://github.com/KeaganCB-OW)) | Sole developer and designer | Concept and pitch, SIFT design system and tokens, all six screens and 25 components, flow state machine, landscape and portrait layouts, Firestore schema and security rules, resolution and extraction pipelines, backend test suite, Docker emulator environment, documentation |
 
 ### Contributing
 
-Work happens on `main` with focused commits per unit of work. If you are extending the project, keep the split: resolution logic in `functions/src/resolution/`, extraction logic in `functions/src/extraction/`, and every visual value sourced from `sift-theme.ts`.
+Work happens on feature branches off `main`, with focused commits per unit of work. If you are extending the project, keep the split: resolution logic in `functions/src/resolution/`, extraction logic in `functions/src/extraction/`, and every visual value sourced from `sift-theme.ts`.
 
 ---
 
@@ -675,8 +714,8 @@ Work happens on `main` with focused commits per unit of work. If you are extendi
 
 **Guidance**
 
-- Tsungai Katsuro and William Basson for there continued guidance and critique of this project.
-- The project was scaffolded from the Expo default template, which is why the [MIT licence](LICENSE) retains 650 Industries' copyright notice
+- Tsungai Katsuro and William Basson for their continued guidance and critique of this project.
+- The project was scaffolded from the Expo default template, which is MIT licensed and 650 Industries' copyright. SIFT itself is released under AGPLv3
 
 ---
 
