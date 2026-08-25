@@ -194,17 +194,19 @@ export function useSiftFlow() {
           ? 'SEARCH RUNNING'
           : selectedIssue
             ? 'RESOLVE ISSUE'
-            : failedSources > 0
+            : stagedLinks.length > 0
               ? 'RETRY SEARCH'
               : 'CONFIRM MATCHES',
         primaryAction: () => {
           if (selectedIssue && selectedTile) openConfirm(selectedTile.domain);
-          else if (failedSources > 0) runSearch();
+          else if (stagedLinks.length > 0) runSearch();
           else setScreen('results');
         },
         // RETRY SEARCH doesn't need confirm-match issues resolved first, they're
-        // unrelated problems: only CONFIRM MATCHES' original gate still applies.
-        primaryDisabled: !complete || (!selectedIssue && failedSources === 0 && openIssues > 0),
+        // unrelated problems. With nothing staged there is nothing to retry, so
+        // this is CONFIRM MATCHES again and its original gate applies as before:
+        // a FAILED source alone (no link given for it yet) still needs that.
+        primaryDisabled: !complete || (!selectedIssue && stagedLinks.length === 0 && openIssues > 0),
         secondaryLabel: 'BACK',
         secondaryAction: backToSourcesFromLive,
       },
