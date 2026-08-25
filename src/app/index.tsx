@@ -7,6 +7,7 @@ import { AlertLogPopup } from '@/components/sift/AlertLogPopup';
 import { ListingDetailPopup } from '@/components/sift/ListingDetailPopup';
 import { NoteBanner } from '@/components/sift/NoteBanner';
 import { Rail } from '@/components/sift/Rail';
+import { RetryUrlPopup } from '@/components/sift/RetryUrlPopup';
 import { SavedPill, SavedStrip } from '@/components/sift/SavedStrip';
 import { ConfirmView } from '@/components/sift/views/ConfirmView';
 import { DashboardView } from '@/components/sift/views/DashboardView';
@@ -38,7 +39,15 @@ export default function SiftAppScreen() {
   const ActiveView = VIEW_BY_SCREEN[state.screen];
 
   const notes = activeNotes.map((n) => (
-    <NoteBanner key={n.id} kind={n.kind} heading={n.heading} body={n.body} onDismiss={() => actions.dismissNote(n.id)} />
+    <NoteBanner
+      key={n.id}
+      kind={n.kind}
+      heading={n.heading}
+      body={n.body}
+      retryable={n.retryable}
+      onRetry={n.domain ? () => actions.openRetry(n.domain as string) : undefined}
+      onDismiss={() => actions.dismissNote(n.id)}
+    />
   ));
 
   const popups = (
@@ -62,6 +71,15 @@ export default function SiftAppScreen() {
       {showArchive && (
         <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
           <AlertLogPopup entries={archiveLabeled} count={String(archiveCount).padStart(2, '0')} onClose={actions.toggleArchive} />
+        </View>
+      )}
+      {state.retryDomain && (
+        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
+          <RetryUrlPopup
+            domain={state.retryDomain}
+            onSubmit={(url) => actions.submitRetryUrl(state.retryDomain as string, url)}
+            onClose={actions.closeRetry}
+          />
         </View>
       )}
     </>

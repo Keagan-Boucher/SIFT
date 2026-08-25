@@ -144,6 +144,9 @@ export function toSourceNotes(search: SearchDoc | null): NoteView[] {
         state.status === 'BLOCKED'
           ? `${state.domain}: ${state.reason ?? 'refuses automated access'}. Remove this source to continue.`
           : `${state.domain}: ${state.reason ?? 'could not be read'}. Other sources still compared.`,
+      // A robots refusal will not change no matter what URL is pasted, so only
+      // a failed read is worth offering the fix for.
+      retryable: state.status === 'FAILED',
     }));
 }
 

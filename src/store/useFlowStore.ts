@@ -22,6 +22,8 @@ interface FlowStore {
   query: string;
   showArchive: boolean;
   showAccount: boolean;
+  /** Domain of the FAILED source whose "paste a search URL" popup is open, if any. */
+  retryDomain: string | null;
   /** Index of the candidate selected in the confirm step. */
   chosen: number;
   /** Index of the tile whose detail popup is open. */
@@ -33,6 +35,8 @@ interface FlowStore {
   setQuery: (query: string) => void;
   toggleArchive: () => void;
   toggleAccount: () => void;
+  openRetry: (domain: string) => void;
+  closeRetry: () => void;
   choose: (index: number) => void;
   select: (index: number | null) => void;
   archive: (note: NoteView, stamp: string) => void;
@@ -45,6 +49,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
   query: DEFAULT_QUERY,
   showArchive: false,
   showAccount: false,
+  retryDomain: null,
   chosen: 0,
   selected: null,
   dismissed: [],
@@ -52,9 +57,11 @@ export const useFlowStore = create<FlowStore>((set) => ({
   setScreen: (screen) => set({ screen }),
   setInput: (input) => set({ input }),
   setQuery: (query) => set({ query }),
-  // The two panels share a corner, so opening one closes the other.
-  toggleArchive: () => set((s) => ({ showArchive: !s.showArchive, showAccount: false })),
-  toggleAccount: () => set((s) => ({ showAccount: !s.showAccount, showArchive: false })),
+  // All three share a corner, so opening one closes the others.
+  toggleArchive: () => set((s) => ({ showArchive: !s.showArchive, showAccount: false, retryDomain: null })),
+  toggleAccount: () => set((s) => ({ showAccount: !s.showAccount, showArchive: false, retryDomain: null })),
+  openRetry: (domain) => set({ retryDomain: domain, showArchive: false, showAccount: false }),
+  closeRetry: () => set({ retryDomain: null }),
   choose: (chosen) => set({ chosen }),
   select: (selected) => set({ selected }),
   archive: (note, stamp) =>

@@ -38,7 +38,7 @@ export function useSiftFlow() {
   // Live only once there is a project and a signed-in uid to own the documents.
   const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
 
-  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount } = state;
+  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, openRetry, closeRetry } = state;
   const chooseRecent = setQuery;
   const selectTile = useCallback((index: number) => state.select(index), [state]);
   const closeListing = useCallback(() => state.select(null), [state]);
@@ -70,6 +70,18 @@ export function useSiftFlow() {
     state.choose(0);
     setScreen('live');
   }, [session, state, setScreen]);
+
+  /** Method D: retries one FAILED source with a search URL the user pasted for it. */
+  const submitRetryUrl = useCallback(
+    (domain: string, url: string) => {
+      session.provideSearchUrl(domain, url.trim());
+      closeRetry();
+      state.select(null);
+      state.choose(0);
+      setScreen('live');
+    },
+    [session, closeRetry, state, setScreen],
+  );
 
   const backToSourcesFromLive = useCallback(() => {
     session.cancelSearch();
@@ -399,6 +411,9 @@ export function useSiftFlow() {
       dismissNote,
       toggleArchive,
       toggleAccount,
+      openRetry,
+      closeRetry,
+      submitRetryUrl,
       saveCurrentSearch,
       checkItem,
       checkAll,

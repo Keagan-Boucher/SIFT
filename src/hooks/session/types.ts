@@ -29,6 +29,12 @@ export interface SiftSession {
   removeSource: (domain: string) => void;
   resetSources: () => void;
   runSearch: (query: string) => void;
+  /**
+   * Method D: a search URL the user pasted for one domain resolution could
+   * not work out on its own. Re-runs the search immediately with it, and
+   * keeps it for any further re-run of the same sources.
+   */
+  provideSearchUrl: (domain: string, url: string) => void;
   cancelSearch: () => void;
   /** Opens the confirm step for one source, loading its candidates. */
   beginConfirm: (domain: string) => void;

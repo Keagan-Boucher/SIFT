@@ -22,10 +22,13 @@ interface NoteBannerProps {
   heading: string;
   body: string;
   onDismiss: () => void;
+  /** Set alongside onRetry to show the "paste a search URL" action. */
+  retryable?: boolean;
+  onRetry?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
-export function NoteBanner({ kind, heading, body, onDismiss, style }: NoteBannerProps) {
+export function NoteBanner({ kind, heading, body, onDismiss, retryable, onRetry, style }: NoteBannerProps) {
   const color = NOTE_COLOR[kind];
   return (
     <View style={[styles.row, { borderColor: color }, style]}>
@@ -36,6 +39,11 @@ export function NoteBanner({ kind, heading, body, onDismiss, style }: NoteBanner
       <Text style={styles.body} numberOfLines={1}>
         {body}
       </Text>
+      {retryable && onRetry && (
+        <Pressable onPress={onRetry} style={[styles.retry, { borderColor: color }]}>
+          <Text style={[styles.retryLabel, { color }]}>PASTE URL</Text>
+        </Pressable>
+      )}
       <Pressable onPress={onDismiss} style={[styles.dismiss, { backgroundColor: color }]}>
         <Text style={styles.dismissLabel}>×</Text>
       </Pressable>
@@ -55,6 +63,15 @@ const styles = StyleSheet.create({
   },
   heading: { ...SiftType.label, flexShrink: 0 },
   body: { fontFamily: SiftFontFamily.system, fontSize: 11, lineHeight: 16, color: SiftColors.bone, flex: 1 },
+  retry: {
+    flexShrink: 0,
+    height: 22,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryLabel: { ...SiftType.annot, letterSpacing: 0.6 },
   dismiss: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   dismissLabel: { color: SiftColors.void, fontSize: 15, fontWeight: '700', lineHeight: 15 },
 });

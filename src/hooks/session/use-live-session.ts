@@ -52,6 +52,8 @@ export function useLiveSession(userId: string | null): SiftSession {
   const [confirmDomain, setConfirmDomain] = useState<string | null>(null);
   const [activeQuery, setActiveQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /** Search URLs pasted for domains resolution could not work out on its own, keyed by domain. */
+  const [userSearchUrls, setUserSearchUrls] = useState<Record<string, string>>({});
 
   const fail = useCallback((cause: unknown) => {
     setError(cause instanceof Error ? cause.message : String(cause));
@@ -96,8 +98,9 @@ export function useLiveSession(userId: string | null): SiftSession {
     [historyFor, watchedId],
   );
 
-  const runSearch = useCallback(
-    (query: string) => {
+  /** Shared by a normal run and a Method D retry, which needs to pass URLs before the state update carrying them has landed. */
+  const startSearch = useCallback(
+    (query: string, urls: Record<string, string>) => {
       if (!userId || stagedSources.length === 0) return;
       setActiveQuery(query);
       setError(null);
@@ -109,11 +112,23 @@ export function useLiveSession(userId: string | null): SiftSession {
         userId,
         query,
         stagedSources.filter((source) => source.status !== 'BLOCKED').map((source) => source.domain),
+        urls,
       )
         .then(setSearchId)
         .catch(fail);
     },
     [userId, stagedSources, fail],
+  );
+
+  const runSearch = useCallback((query: string) => startSearch(query, userSearchUrls), [startSearch, userSearchUrls]);
+
+  const provideSearchUrl = useCallback(
+    (domain: string, url: string) => {
+      const urls = { ...userSearchUrls, [domain]: url };
+      setUserSearchUrls(urls);
+      startSearch(activeQuery, urls);
+    },
+    [userSearchUrls, activeQuery, startSearch],
   );
 
   const confirmCandidate = useCallback(
@@ -187,6 +202,7 @@ export function useLiveSession(userId: string | null): SiftSession {
 
   const resetSources = useCallback(() => {
     setStagedSources(NO_SOURCES);
+    setUserSearchUrls({});
     clearSearch();
     setError(null);
   }, [clearSearch]);
@@ -225,6 +241,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       removeSource,
       resetSources,
       runSearch,
+      provideSearchUrl,
       cancelSearch,
       beginConfirm: setConfirmDomain,
       confirmCandidate,
@@ -247,6 +264,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       removeSource,
       resetSources,
       runSearch,
+      provideSearchUrl,
       cancelSearch,
       confirmCandidate,
       saveCurrentSearch,

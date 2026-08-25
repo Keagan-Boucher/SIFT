@@ -236,6 +236,9 @@ export function useDemoSession(): SiftSession {
       removeSource,
       resetSources,
       runSearch,
+      // The seeded dataset has no FAILED source to demonstrate the fix on,
+      // only a BLOCKED one, which this cannot help with anyway.
+      provideSearchUrl: () => {},
       cancelSearch,
       beginConfirm: () => {},
       confirmCandidate,

@@ -59,6 +59,8 @@ export interface NoteView {
   domain?: string;
   heading: string;
   body: string;
+  /** True for a FAILED (not BLOCKED) source: pasting its search URL directly could fix it. */
+  retryable?: boolean;
 }
 
 export interface RecentView {
