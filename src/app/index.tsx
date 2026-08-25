@@ -1,209 +1,130 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Redirect, router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { ActionBar } from '@/components/sift/ActionBar';
-import { AccountPopup } from '@/components/sift/AccountPopup';
-import { AlertLogPopup } from '@/components/sift/AlertLogPopup';
-import { ListingDetailPopup } from '@/components/sift/ListingDetailPopup';
-import { NoteBanner } from '@/components/sift/NoteBanner';
-import { Rail } from '@/components/sift/Rail';
-import { RetryUrlPopup } from '@/components/sift/RetryUrlPopup';
-import { SavedPill, SavedStrip } from '@/components/sift/SavedStrip';
-import { ConfirmView } from '@/components/sift/views/ConfirmView';
-import { DashboardView } from '@/components/sift/views/DashboardView';
-import { LiveView } from '@/components/sift/views/LiveView';
-import { ResultsView } from '@/components/sift/views/ResultsView';
-import { SavedView } from '@/components/sift/views/SavedView';
-import { SourcesView } from '@/components/sift/views/SourcesView';
-import { SiftColors, SiftSpacing } from '@/constants/sift-theme';
-import { useOrientationPolicy } from '@/hooks/use-orientation-policy';
+import { DotMatrix } from '@/components/sift/DotMatrix';
+import { ScanSweep } from '@/components/sift/ScanSweep';
+import { SiftMark } from '@/components/sift/SiftMark';
+import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
+import { useAuth } from '@/hooks/use-auth';
 import { useOrientation } from '@/hooks/use-orientation';
-import { useSiftFlow } from '@/hooks/use-sift-flow';
+import { useOrientationPolicy } from '@/hooks/use-orientation-policy';
 
-const VIEW_BY_SCREEN = {
-  sources: SourcesView,
-  live: LiveView,
-  confirm: ConfirmView,
-  results: ResultsView,
-  dashboard: DashboardView,
-  saved: SavedView,
-};
+/**
+ * Long enough for the sweep to read as a boot sequence rather than a flicker,
+ * short enough that it never becomes the reason launch feels slow. Auth
+ * usually resolves inside it, so the splash costs nothing in practice.
+ */
+const MIN_SPLASH_MS = 1400;
 
-export default function SiftAppScreen() {
+/**
+ * The launch route: SIFT's boot screen, and the gate in front of everything
+ * else. It holds until Firebase has said whether there is a session, then
+ * hands off to the app or to the auth screen. Tapping skips the wait.
+ */
+export default function SplashScreen() {
   useOrientationPolicy();
   const orientation = useOrientation();
-  const flow = useSiftFlow();
-  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, hasLinks, linksCount, stagedLinks, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, showLinks, mode, isGuest, accountEmail, actions } = flow;
+  const { phase } = useAuth();
+  const [elapsed, setElapsed] = useState(false);
+  const progress = useSharedValue(0);
 
-  const ActiveView = VIEW_BY_SCREEN[state.screen];
+  useEffect(() => {
+    progress.value = withTiming(1, { duration: MIN_SPLASH_MS, easing: Easing.out(Easing.quad) });
+    const timer = setTimeout(() => setElapsed(true), MIN_SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, [progress]);
 
-  const notes = activeNotes.map((n) => (
-    <NoteBanner
-      key={n.id}
-      kind={n.kind}
-      heading={n.heading}
-      body={n.body}
-      retryable={n.retryable}
-      onRetry={n.domain ? () => actions.openRetry(n.domain as string) : undefined}
-      onDismiss={() => actions.dismissNote(n.id)}
-    />
-  ));
+  const barStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
-  const popups = (
+  // 'loading' is Firebase still restoring a persisted session; anything else is an answer.
+  const resolved = phase !== 'loading';
+
+  if (elapsed && resolved) {
+    return <Redirect href={phase === 'ready' ? '/app' : '/auth'} />;
+  }
+
+  const status = (
     <>
-      {showListing && listing && (
-        <View style={[styles.popupAnchor, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <ListingDetailPopup listing={listing} onClose={actions.closeListing} />
-        </View>
-      )}
-      {showAccount && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <AccountPopup
-            mode={mode}
-            isGuest={isGuest}
-            email={accountEmail}
-            onClose={actions.toggleAccount}
-          />
-        </View>
-      )}
-      {showArchive && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <AlertLogPopup entries={archiveLabeled} count={String(archiveCount).padStart(2, '0')} onClose={actions.toggleArchive} />
-        </View>
-      )}
-      {showLinks && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <AlertLogPopup
-            entries={stagedLinks}
-            count={String(linksCount).padStart(2, '0')}
-            onClose={actions.toggleLinks}
-            title="LINKS"
-            emptyText="No links staged. Paste a search URL from a FAILED source's alert to add one."
-          />
-        </View>
-      )}
-      {state.retryDomain && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <RetryUrlPopup
-            domain={state.retryDomain}
-            onSubmit={(url) => actions.submitRetryUrl(state.retryDomain as string, url)}
-            onClose={actions.closeRetry}
-          />
-        </View>
-      )}
+      <Text style={styles.status}>{'//INITIALIZING_SESSION'}</Text>
+      <View style={styles.barTrack}>
+        <Animated.View style={[styles.barFill, barStyle]} />
+      </View>
     </>
   );
 
-  const actionBar = (
-    <ActionBar
-      secondaryLabel={nav.secondaryLabel}
-      onSecondary={nav.secondaryAction}
-      primaryLabel={nav.primaryLabel}
-      onPrimary={nav.primaryAction}
-      primaryDisabled={nav.primaryDisabled}
-      alertCount={alertCount}
-      hasAlerts={hasAlerts}
-      onToggleAlerts={actions.toggleArchive}
-      linksCount={linksCount}
-      hasLinks={hasLinks}
-      onToggleLinks={actions.toggleLinks}
-      statusLine={statusLine}
-    />
-  );
-
-  const scrollableContent = (
-    <ScrollView
-      style={styles.activeScroll}
-      contentContainerStyle={styles.activeScrollContent}
-      showsVerticalScrollIndicator={false}>
-      {notes.length > 0 && <View style={styles.notesCol}>{notes}</View>}
-      <View style={styles.activeArea}>
-        <ActiveView flow={flow} orientation={orientation} />
-      </View>
-    </ScrollView>
-  );
+  const skip = () => {
+    if (resolved) router.replace(phase === 'ready' ? '/app' : '/auth');
+  };
 
   if (orientation === 'landscape') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <Pressable style={styles.screen} onPress={skip} accessibilityLabel="Skip splash">
+        <DotMatrix density="lo" />
+        <ScanSweep direction="vertical" />
         <View style={styles.landscapeBody}>
-          <Rail
-            screenName={railName}
-            connection={railConnection}
-            sourceCount={sources.length}
-            onPressSession={actions.toggleAccount}
-          />
-          <SavedStrip active={state.screen === 'saved'} hasDrops={hasDrops} onPress={actions.openSaved} />
-          <View style={styles.contentCol}>
-            {scrollableContent}
-            {popups}
+          <View style={styles.landscapeBrand}>
+            <SiftMark width={40} />
+            <Text style={[styles.wordmark, styles.wordmarkLandscape]}>SIFT</Text>
           </View>
+          <View style={styles.divider} />
+          <View style={styles.landscapeStatus}>{status}</View>
         </View>
-        {actionBar}
-      </SafeAreaView>
+      </Pressable>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <Pressable style={styles.screen} onPress={skip} accessibilityLabel="Skip splash">
+      <DotMatrix density="lo" />
+      <ScanSweep direction="vertical" />
       <View style={styles.portraitBody}>
-        <View style={styles.portraitHeaderBar}>
-          <Text style={styles.portraitTitle}>{railName}</Text>
-          <View style={styles.portraitHeaderRight}>
-            <View style={[styles.connectionPill, railConnection === 'LIVE' && styles.connectionPillLive]}>
-              <Text style={[styles.connectionPillText, railConnection === 'LIVE' && styles.connectionPillTextLive]}>{railConnection}</Text>
-            </View>
-            <SavedPill hasDrops={hasDrops} onPress={actions.openSaved} />
-            <Pressable onPress={actions.toggleAccount} accessibilityLabel="Account">
-              <Text style={styles.sessionCode}>ACCT</Text>
-            </Pressable>
-          </View>
-        </View>
-        <View style={styles.contentCol}>
-          {scrollableContent}
-          {popups}
+        <View style={styles.portraitBrand}>
+          <SiftMark width={46} />
+          <Text style={styles.wordmark}>SIFT</Text>
         </View>
       </View>
-      {actionBar}
-    </SafeAreaView>
+      <View style={styles.portraitStatus}>{status}</View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: SiftColors.void },
-  landscapeBody: { flex: 1, flexDirection: 'row', minHeight: 0, minWidth: 0 },
-  contentCol: { flex: 1, minHeight: 0, minWidth: 0, position: 'relative' },
-  notesCol: { gap: 1 },
-  activeScroll: { flex: 1 },
-  activeScrollContent: { flexGrow: 1, backgroundColor: SiftColors.void },
-  activeArea: { flex: 1, minHeight: 0 },
-  portraitBody: { flex: 1, minHeight: 0 },
-  portraitHeaderBar: {
-    height: 48,
-    backgroundColor: SiftColors.carbon,
-    borderBottomWidth: 1,
-    borderBottomColor: SiftColors.graphite,
+  screen: { flex: 1, backgroundColor: SiftColors.void, overflow: 'hidden' },
+
+  portraitBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  portraitBrand: { alignItems: 'center', gap: SiftSpacing.space4 },
+  portraitStatus: {
+    position: 'absolute',
+    bottom: 113,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: SiftSpacing.space3,
+  },
+
+  landscapeBody: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SiftSpacing.space4,
+    justifyContent: 'center',
+    gap: SiftSpacing.space7,
   },
-  portraitTitle: {
-    fontFamily: 'BigShouldersDisplay_700Bold',
-    fontSize: 20,
-    lineHeight: 20,
-    letterSpacing: -0.2,
-    textTransform: 'uppercase',
+  landscapeBrand: { alignItems: 'center', gap: SiftSpacing.space3 },
+  landscapeStatus: { alignItems: 'flex-start', gap: SiftSpacing.space3 },
+  divider: { width: 1, height: 100, backgroundColor: SiftColors.graphite },
+
+  wordmark: {
+    fontFamily: SiftFontFamily.display,
+    fontSize: 44,
+    lineHeight: 44,
+    letterSpacing: -0.88,
     color: SiftColors.bone,
   },
-  portraitHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  connectionPill: { paddingVertical: 3, paddingHorizontal: 6 },
-  connectionPillLive: { backgroundColor: SiftColors.mint },
-  connectionPillText: { fontFamily: 'JetBrainsMono_700Bold', fontSize: 11, letterSpacing: 0.88, color: SiftColors.boneDim },
-  connectionPillTextLive: { color: SiftColors.void },
-  sessionCode: { fontFamily: 'JetBrainsMono_400Regular', fontSize: 9, letterSpacing: 0.9, color: SiftColors.boneDim },
-  popupAnchor: { position: 'absolute', zIndex: 5 },
-  popupAnchorAbove: { zIndex: 6 },
-  popupAnchorLandscape: { right: 12, bottom: 12 },
-  popupAnchorPortrait: { left: 12, right: 12, bottom: 12 },
+  wordmarkLandscape: { fontSize: 40, lineHeight: 40, letterSpacing: -0.8 },
+
+  status: { ...SiftType.label, color: SiftColors.mint, textTransform: 'uppercase' },
+  barTrack: { width: 160, height: 3, backgroundColor: SiftColors.slate, overflow: 'hidden' },
+  barFill: { height: 3, backgroundColor: SiftColors.mint },
 });
