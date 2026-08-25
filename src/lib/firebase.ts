@@ -54,7 +54,7 @@ export const auth: Auth =
 
 export const db = getFirestore(app);
 /** Must match setGlobalOptions in functions/src/index.ts, or callables 404. */
-export const functions = getFunctions(app, 'europe-west1');
+export const functions = getFunctions(app, 'africa-south1');
 
 if (useEmulator) {
   const host = emulatorHost();

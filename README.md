@@ -137,7 +137,9 @@ flowchart LR
     Auth --- UI
 ```
 
-Six functions deploy, all pinned to `europe-west1` alongside Firestore. `onSearchCreated` is the Firestore trigger that does the work; `confirmMatch` and `recheckSavedSearch` are callables the app invokes directly; `scheduledRecheck` is the nightly cron. `resolveListingUrl` and `extractListing` are single-stage callables exposed for testing one half of the pipeline in isolation, not used by the app's main flow.
+Six functions deploy. `onSearchCreated` is the Firestore trigger that does the work; `confirmMatch` and `recheckSavedSearch` are callables the app invokes directly; `scheduledRecheck` is the nightly cron. `resolveListingUrl` and `extractListing` are single-stage callables exposed for testing one half of the pipeline in isolation, not used by the app's main flow.
+
+Five of the six sit in `africa-south1` alongside Firestore, which a Firestore trigger requires and which puts every read and write in-region. `scheduledRecheck` is the exception: **Cloud Scheduler has no Johannesburg presence** and rejects the region outright, so the cron runs from `europe-west1`. That costs cross-region Firestore reads once a night, and unlike `onSearchCreated` it is not a Firestore trigger, so nothing obliges it to sit with the database. Its schedule stays on `Africa/Johannesburg` time regardless of where it runs.
 
 The pipeline is deliberately split in two. Resolution answers _which page_, extraction answers _what is on it_. Conflating them produces a scraper that only works if the user already found the product themselves.
 
@@ -167,25 +169,33 @@ That validation is what makes the write-back safe, and it is measurable: the fir
 Tiers 3-5 are fully generic and need no per-retailer configuration, which is what keeps the any-site promise intact. Tier 5 is the most expensive rung on the ladder, a real headless Chromium browser rather than a fetch, so it only runs once tiers 3 and 4 have both come back empty and the page looks client-rendered. Tiers 1 and 2 are per-retailer work that scales badly, so they are scoped out of the MVP and stubbed in place.
 
 > [!IMPORTANT]
-> **Where the scraper runs decides whether it works.** This is the single biggest constraint on the project, and it is not a code problem.
+> **Where the scraper runs changes what it can reach, and how fast.** This drove the choice of region, and it was measured rather than assumed.
 >
-> The same query, the same code, the same rules, run against `geekhome.co.za`:
+> An earlier run against `geekhome.co.za` from `europe-west1` was refused at the transport layer: `TCP reset. The site refused the connection`, where the same query from a home connection returned `form-discovery`, 12 candidates, top match **100%**, `MTG Teenage Mutant Ninja Turtles Bundle` at **R2 300**, in 2 seconds. That looked like a permanent block on datacentre address space.
 >
-> | Egress | Result |
-> | --- | --- |
-> | Home connection, via the local emulator suite | `form-discovery`, 12 candidates, top match **100%**, `MTG Teenage Mutant Ninja Turtles Bundle` at **R2 300**, in 2 seconds |
-> | Cloud Functions in `europe-west1` | TCP reset. `The site refused the connection` |
+> Re-testing later with identical probes deployed side by side in both regions did not reproduce it. Both regions were served, with byte-identical responses, so **the refusal was transient rather than structural**. Retailer bot rules change, and a single failed measurement is not a standing property of the site.
 >
-> Small retailers block foreign and datacentre traffic outright, and Cloudflare returns `403` to the same ranges. So **run the emulator suite locally to scrape South African retailers**, which is what `docker compose up` is for. The deployed functions still serve everything else, and everything except the outbound request behaves identically either way.
+> What did reproduce, consistently across four trials, is latency:
+>
+> | Target | `africa-south1` | `europe-west1` |
+> | --- | --- | --- |
+> | `geekhome.co.za/` | 200, ~45ms | 200, ~1350ms |
+> | `geekhome.co.za/search?q=…` | 200, ~25ms | 200, ~840ms |
+> | `evetech.co.za/search?query=…` | 200, ~170ms | 200, ~700ms |
+>
+> Roughly **4x to 30x**, for the same bytes. The pipeline fetches up to five candidate URLs per source, serially and rate-limited to one request per host, so that gap compounds across a single search. Firestore and every function except the nightly cron therefore live in `africa-south1`.
+>
+> The local emulator path still matters, both because a home connection is the fallback if a retailer does start refusing datacentre ranges, and because tier 5 currently extracts more reliably there than in production. See the limitations below.
 
 > [!NOTE]
-> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Five things stop that working, and all five were hit against real retailers rather than found in theory.
+> **Known limitations, measured against live sites.** Tiers 3 and 4 read HTML. Six things stop that working, and all six were hit against real retailers rather than found in theory.
 >
 > | Limitation | What happens | The fix, and where it sits |
 > | --- | --- | --- |
 > | Client-rendered storefronts | The page is a JavaScript shell with no search form and no prices. Most large South African retailers are built this way. | Tier 5 headless rendering, implemented. Costs a browser rather than a fetch, so it only runs as the last resort |
 > | Headless is slow and not guaranteed | A heavy storefront can use the full 40s render budget per candidate URL and still return nothing, so one source can take a minute or more before it reports. | Bounded by a hard deadline that discards and relaunches the browser rather than hanging. Accepted cost of the last resort |
-> | Datacentre IP blocking | `403` from Cloudflare, or a TCP reset, for a request that succeeds from a home connection. | Run the pipeline locally, as above. Applies to the headless render too |
+> | Tier 5 under-renders in production | The headless render succeeds in deployed Cloud Functions (no error, ~18s, 592KB), but the page has not finished hydrating when it is read, so extraction finds **0 candidates** where the same URL yields 8 in the Docker emulator. Static HTML is byte-identical in both, so the site is not cloaking. | Open. The settle window and scroll pass are tuned for the emulator's faster Chromium. Run locally for a reliable tier 5 demo |
+> | Datacentre IP blocking | Was hit once as a TCP reset from `europe-west1`, and did not reproduce on re-test from either region. Cloudflare can also return `403` to hosting ranges. | Treat as possible rather than certain. A home connection via the emulator is the fallback if it returns |
 > | robots.txt on search paths | Many storefronts allow `/` and disallow `/search`. That is a refusal, and SIFT honours it, including for a URL the user pasted themselves. | Nothing to fix. The source is reported `BLOCKED` |
 > | Niche catalogues | The shop simply does not stock the product, and its search returns unrelated items. | Nothing to fix. Reported as such rather than as a failure |
 >
@@ -623,7 +633,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Flow state machine and Zustand store     |       Complete       |
 | Resolution methods A to D                |   Complete, tested   |
 | Extraction tiers 3 and 4                 |   Complete, tested   |
-| Extraction tier 5, headless rendering    |   Complete, tested   |
+| Extraction tier 5, headless rendering    | Complete locally. Runs in production but under-renders, see limitations |
 | Match confidence and confirm step        |   Complete, tested   |
 | Politeness: robots.txt and rate limiting |   Complete, tested   |
 | Search pipeline and real-time streaming  |       Complete       |
@@ -631,6 +641,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Firebase Auth with guest upgrade         |       Complete       |
 | Frontend wired to live Firestore         |       Complete       |
 | Deployed and verified against live sites |       Complete       |
+| Firestore and functions in `africa-south1` | Complete. Cron stays in `europe-west1`, Cloud Scheduler has no Johannesburg region |
 | Firestore schema, rules, indexes         |       Complete       |
 | Docker emulator environment              |       Complete       |
 | EAS build profiles                       |       Complete       |

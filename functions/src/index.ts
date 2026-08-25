@@ -13,11 +13,18 @@ initializeApp();
 getFirestore().settings({ ignoreUndefinedProperties: true });
 
 /**
- * Co-located with Firestore in europe-west1. A Firestore trigger has to run in
+ * Co-located with Firestore in africa-south1. A Firestore trigger has to run in
  * the database's region anyway, and putting the callables there too keeps every
- * read and write in-region rather than crossing the Atlantic on each call.
+ * read and write in-region rather than crossing a continent on each call.
+ *
+ * Johannesburg rather than Europe because the retailers being scraped are South
+ * African, and the difference is not marginal: measured against geekhome.co.za
+ * and evetech.co.za, africa-south1 answered in 13-200ms where europe-west1 took
+ * 190-1400ms for byte-identical responses. The pipeline fetches several
+ * candidate URLs per source, serially and rate-limited per host, so that gap
+ * compounds across a single search.
  */
-setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
+setGlobalOptions({ region: "africa-south1", maxInstances: 10 });
 
 export { resolveListingUrl } from "./resolution";
 export { extractListing } from "./extraction";
