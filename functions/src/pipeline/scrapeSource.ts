@@ -19,6 +19,12 @@ import { tokenize } from "../matching/score";
 const MAX_CANDIDATE_URLS = 5;
 
 /**
+ * A headless render costs far more than a plain fetch, so far fewer of the
+ * resolution's guesses are worth rendering than are worth plain-fetching.
+ */
+const MAX_HEADLESS_CANDIDATE_URLS = 3;
+
+/**
  * A results page whose best match scores below this does not contain the
  * product: what was read is navigation, filters or an empty-search page. Taking
  * it anyway would turn "not found" into a confidently wrong price, which is the
@@ -225,14 +231,23 @@ export async function scrapeSource(
     // Every plain fetch above came back either empty or without this product,
     // and the site looks like it draws its content in with JavaScript. That is
     // exactly the case a headless render exists for, so it is worth the cost of
-    // a browser before giving up on the source entirely. Only the resolution's
-    // best guess is rendered, not every candidate URL: a browser is expensive
-    // enough that this is a last resort, not another pass of the cascade.
+    // a browser before giving up on the source entirely.
+    //
+    // Only a handful of the resolution's guesses are rendered, not every
+    // candidate URL: a browser is expensive enough that this is a last resort,
+    // not another pass of the cascade. But it cannot stop at candidates[0]
+    // either. When no platform was fingerprinted, every candidate is one of
+    // the generic common-path guesses at the same confidence, in an order
+    // that says nothing about which one the site actually understands, e.g.
+    // evetech.co.za only returns real results for ?query=, not the ?q= guess
+    // that happens to sort first. A plain fetch cannot tell those apart on a
+    // client-rendered page, since neither carries prices either way, so this
+    // is the first point in the cascade able to.
     if (plan.clientRendered || productAbsentFromPage || noPricesInHtml) {
-      const target = plan.candidates[0];
-      const rendered = await headlessExtract(target.listingUrl, query);
+      for (const target of plan.candidates.slice(0, MAX_HEADLESS_CANDIDATE_URLS)) {
+        const rendered = await headlessExtract(target.listingUrl, query);
+        if (rendered.length === 0 || rendered[0].matchConfidence < MIN_ACCEPTABLE_MATCH) continue;
 
-      if (rendered.length > 0 && rendered[0].matchConfidence >= MIN_ACCEPTABLE_MATCH) {
         await acceptResolution(domain, target);
         await recordOutcome(domain, true);
         return { ok: true, method: target.method, listingUrl: target.listingUrl, candidates: rendered };
