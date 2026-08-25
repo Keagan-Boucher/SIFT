@@ -203,7 +203,9 @@ export function useSiftFlow() {
           else if (failedSources > 0) runSearch();
           else setScreen('results');
         },
-        primaryDisabled: !complete || (!selectedIssue && openIssues > 0),
+        // RETRY SEARCH doesn't need confirm-match issues resolved first, they're
+        // unrelated problems: only CONFIRM MATCHES' original gate still applies.
+        primaryDisabled: !complete || (!selectedIssue && failedSources === 0 && openIssues > 0),
         secondaryLabel: 'BACK',
         secondaryAction: backToSourcesFromLive,
       },
