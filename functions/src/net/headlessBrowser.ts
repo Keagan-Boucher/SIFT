@@ -35,14 +35,18 @@ const MAX_SCROLL_PX = 6_000;
 const HARD_DEADLINE_MS = 40_000;
 
 /**
- * A real browser costs far more memory and time than a plain fetch, so this
- * is capped well below the plain-fetch concurrency. It is not 1: a browser
- * *process* is the expensive part, and that is shared and launched once (see
- * getBrowser below); a *context* within it is cheap, and scrapeSource can now
- * need more than one per source when the first candidate URL it renders turns
- * out to be the wrong guess.
+ * One render at a time. This was briefly 2, on the theory that a context is
+ * cheap next to the shared process — true in general, but not here: Chromium
+ * runs `--single-process` in this environment (required, not optional, given
+ * the sandboxing this is deployed under), which gives concurrent contexts no
+ * isolation from each other. Confirmed live: raising this to 2 crashed the
+ * shared browser outright under two contexts at once, which then failed
+ * every render on the rest of that search, and every later search on that
+ * warm instance, until something happened to poison it. scrapeSource's own
+ * retries across candidate URLs are what actually need the loop, not
+ * parallelism inside this file.
  */
-const headlessLimit = pLimit(2);
+const headlessLimit = pLimit(1);
 
 /**
  * One Chromium process is kept alive for the lifetime of the function
@@ -85,16 +89,19 @@ export interface RenderResult {
 }
 
 /**
- * Tier 5's only job: load `url` in a real browser so client-side JavaScript
- * runs, then hand back the HTML it produced. Robots.txt is checked first,
- * same as every other outbound request the scraper makes. Never throws: a
- * browser failure is reported the same way a blocked or unreachable page is,
- * as "no HTML", since the caller is already the last resort in the cascade.
+ * The actual render. Any error here is reported as "no HTML" rather than
+ * thrown, since the caller is already the last resort in the cascade, but a
+ * browser that has genuinely died is a different problem than a page that
+ * merely failed to load: reusing a dead browser for the next candidate URL
+ * would just fail again immediately, and for every source after it on this
+ * warm instance, so isConnected() is checked on the way out and the browser
+ * is discarded if it has gone.
  */
 async function attemptRender(url: string): Promise<RenderResult> {
   let context;
+  let browser: Browser | undefined;
   try {
-    const browser = await getBrowser();
+    browser = await getBrowser();
     context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1366, height: 1400 } });
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
@@ -114,6 +121,7 @@ async function attemptRender(url: string): Promise<RenderResult> {
     return { html: await page.content() };
   } catch (error) {
     logger.warn(`headless render of ${url} failed`, error);
+    if (browser && !browser.isConnected()) poisonBrowser();
     return { html: null, error: error instanceof Error ? error.message : "headless render failed" };
   } finally {
     await context?.close().catch(() => {});
