@@ -22,4 +22,14 @@ WORKDIR /workspace/functions
 COPY functions/package.json functions/package-lock.json* ./
 RUN npm install
 
+# node:20-slim ships none of the shared libraries headless Chromium needs
+# (libnspr4, libnss3, libatk, ...): it launches, then fails at the dynamic
+# linker before Playwright gets a connection to it. install-deps installs the
+# exact package list for whatever Debian release the image is on, version-
+# pinned to match the playwright-core in package.json so the dependency table
+# is for the right Chromium build. This does not download a browser itself:
+# @sparticuz/chromium supplies the binary, this only supplies its libraries.
+RUN npx --yes playwright@1.62.1 install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /workspace
