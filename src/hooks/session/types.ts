@@ -41,6 +41,8 @@ export interface SiftSession {
   /** Opens the confirm step for one source, loading its candidates. */
   beginConfirm: (domain: string) => void;
   confirmCandidate: (index: number) => void;
+  /** Nothing this source returned matched: drop its result from the run, leaving every other source alone. */
+  discardConfirmSource: () => void;
   saveCurrentSearch: (query: string) => void;
   checkSaved: (savedId: string) => void;
   checkAllSaved: () => void;

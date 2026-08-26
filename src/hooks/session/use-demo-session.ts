@@ -201,6 +201,16 @@ export function useDemoSession(): SiftSession {
     );
   }, []);
 
+  // The seeded run only ever has one unconfirmed tile, so that is the one
+  // being confirmed and the one a discard delists.
+  const discardConfirmSource = useCallback(() => {
+    setState((s) => ({
+      ...s,
+      tiles: s.tiles.filter((tile) => !tile.issue),
+      notes: s.notes.filter((note) => note.kind !== 'prompt'),
+    }));
+  }, []);
+
   const removeSource = useCallback((domain: string) => {
     setState((s) => ({
       ...s,
@@ -243,10 +253,11 @@ export function useDemoSession(): SiftSession {
       cancelSearch,
       beginConfirm: () => {},
       confirmCandidate,
+      discardConfirmSource,
       saveCurrentSearch,
       checkSaved,
       checkAllSaved,
     }),
-    [state, addSource, removeSource, resetSources, runSearch, cancelSearch, confirmCandidate, saveCurrentSearch, checkSaved, checkAllSaved],
+    [state, addSource, removeSource, resetSources, runSearch, cancelSearch, confirmCandidate, discardConfirmSource, saveCurrentSearch, checkSaved, checkAllSaved],
   );
 }

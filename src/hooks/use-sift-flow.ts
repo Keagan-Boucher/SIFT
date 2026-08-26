@@ -112,6 +112,13 @@ export function useSiftFlow() {
     setScreen('live');
   }, [session, state, setScreen]);
 
+  /** Nothing this source returned matched: delist it and go back to the run. */
+  const discardConfirmSource = useCallback(() => {
+    session.discardConfirmSource();
+    state.select(null);
+    setScreen('live');
+  }, [session, state, setScreen]);
+
   const saveCurrentSearch = useCallback(() => {
     session.saveCurrentSearch(state.query);
   }, [session, state.query]);
@@ -347,6 +354,7 @@ export function useSiftFlow() {
         : 'NONE',
       historySuffix: `${String(history.length).padStart(2, '0')}_CHECKS`,
       historySummary,
+      confirmDomain,
       confirmSuffix,
       confirmInsight,
       resultMetadata,
@@ -390,8 +398,7 @@ export function useSiftFlow() {
       chooseCandidate,
       openConfirm,
       confirmMatches,
-      // Nothing here matched: drop the whole run and start over from sources.
-      discardSearch: backToSourcesFromLive,
+      discardConfirmSource,
       dismissNote,
       toggleArchive,
       toggleAccount,

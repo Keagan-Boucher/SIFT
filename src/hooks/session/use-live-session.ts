@@ -50,6 +50,8 @@ export function useLiveSession(userId: string | null): SiftSession {
   const [recentDocs, setRecentDocs] = useState<SearchDoc[]>([]);
   const [historyFor, setHistoryFor] = useState<{ savedSearchId: string; points: number[] } | null>(null);
   const [confirmDomain, setConfirmDomain] = useState<string | null>(null);
+  /** Domains the user delisted from this run. The listener keeps sending them, so they are filtered on the way out. */
+  const [discarded, setDiscarded] = useState<string[]>([]);
   const [activeQuery, setActiveQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   /** Search URLs pasted for domains resolution could not work out on its own, keyed by domain. */
@@ -105,6 +107,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       setActiveQuery(query);
       setError(null);
       setConfirmDomain(null);
+      setDiscarded([]);
       setListings([]);
       setSearch(null);
 
@@ -148,6 +151,11 @@ export function useLiveSession(userId: string | null): SiftSession {
     },
     [searchId, listings, confirmDomain, fail],
   );
+
+  const discardConfirmSource = useCallback(() => {
+    if (confirmDomain) setDiscarded((domains) => [...domains, confirmDomain]);
+    setConfirmDomain(null);
+  }, [confirmDomain]);
 
   const saveCurrentSearch = useCallback(
     (query: string) => {
@@ -200,6 +208,7 @@ export function useLiveSession(userId: string | null): SiftSession {
     setSearch(null);
     setListings([]);
     setConfirmDomain(null);
+    setDiscarded([]);
   }, [search]);
 
   const resetSources = useCallback(() => {
@@ -219,10 +228,16 @@ export function useLiveSession(userId: string | null): SiftSession {
     return stagedSources.map((staged) => live.get(staged.domain) ?? staged);
   }, [search, stagedSources]);
 
+  // Delisted sources are gone from every read of the run: tiles, notes, saving.
+  const shown = useMemo(
+    () => listings.filter((listing) => !discarded.includes(listing.retailerDomain)),
+    [listings, discarded],
+  );
+
   const notes = useMemo<NoteView[]>(() => {
     const dropNotes = savedDocs.map(toDropNote).filter((note): note is NoteView => note !== null);
-    return [...toSourceNotes(search), ...toConfirmNotes(listings), ...dropNotes];
-  }, [search, listings, savedDocs]);
+    return [...toSourceNotes(search), ...toConfirmNotes(shown), ...dropNotes];
+  }, [search, shown, savedDocs]);
 
   const running = search?.status === 'pending' || search?.status === 'resolving' || search?.status === 'extracting';
 
@@ -231,7 +246,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       mode: 'live',
       error,
       sources,
-      tiles: toTileViews(listings),
+      tiles: toTileViews(shown),
       saved: savedDocs.map(toSavedItemView),
       recents: recentDocs.slice(0, 4).map(recentLabel),
       candidates: toCandidateViews(listings.find((item) => item.retailerDomain === confirmDomain) ?? null),
@@ -248,6 +263,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       cancelSearch,
       beginConfirm: setConfirmDomain,
       confirmCandidate,
+      discardConfirmSource,
       saveCurrentSearch,
       checkSaved,
       checkAllSaved,
@@ -255,6 +271,7 @@ export function useLiveSession(userId: string | null): SiftSession {
     [
       error,
       sources,
+      shown,
       listings,
       savedDocs,
       recentDocs,
@@ -271,6 +288,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       provideSearchUrl,
       cancelSearch,
       confirmCandidate,
+      discardConfirmSource,
       saveCurrentSearch,
       checkSaved,
       checkAllSaved,
