@@ -1,9 +1,10 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/sift/Button';
+import { Input } from '@/components/sift/Input';
 import { Rail } from '@/components/sift/Rail';
 import { SiftMark } from '@/components/sift/SiftMark';
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
@@ -39,25 +40,20 @@ interface FieldProps {
 }
 
 function Field({ label, value, onChangeText, placeholder, height, secure, email }: FieldProps) {
-  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        disableFullscreenUI
+      <Input
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={SiftColors.boneDim}
         secureTextEntry={secure}
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete={email ? 'email' : secure ? 'current-password' : 'name'}
         keyboardType={email ? 'email-address' : 'default'}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
         accessibilityLabel={label}
-        style={[styles.input, { height }, focused && styles.inputFocused]}
+        style={[styles.input, { height }]}
       />
     </View>
   );
@@ -299,15 +295,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: SiftColors.carbon,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
-    color: SiftColors.bone,
     fontFamily: SiftType.body.fontFamily,
     fontSize: 14,
     paddingHorizontal: SiftSpacing.space3,
   },
-  inputFocused: { borderColor: SiftColors.acid },
 
   notice: { ...SiftType.annot, color: SiftColors.boneDim, textTransform: 'uppercase' },
   error: { ...SiftType.annot, color: SiftColors.ember },

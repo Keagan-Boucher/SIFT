@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/sift/Button';
 import { CommandHeading } from '@/components/sift/CommandHeading';
+import { Input } from '@/components/sift/Input';
 import { SourceChip } from '@/components/sift/SourceChip';
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import type { Orientation } from '@/hooks/use-orientation';
@@ -22,13 +23,15 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
         <SourceChip key={s.domain} domain={s.domain} status={s.status} onPress={() => actions.removeSource(s.domain)} />
       ))}
       <View style={styles.addRow}>
-        <TextInput
-          disableFullscreenUI
+        <Input
           value={state.input}
           onChangeText={actions.setInput}
           onSubmitEditing={actions.addSourceFromInput}
           placeholder="paste retailer url"
-          placeholderTextColor={SiftColors.boneDim}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          accessibilityLabel="Retailer URL"
           style={styles.urlInput}
         />
         <Button variant="ghost" onPress={actions.addSourceFromInput} style={styles.addButton}>
@@ -43,12 +46,11 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
     <View style={styles.queryCol}>
       <CommandHeading sigil="//" text="QUERY" />
       <View style={styles.queryBox}>
-        <TextInput
-          disableFullscreenUI
+        <Input
           value={state.query}
           onChangeText={actions.setQuery}
           placeholder="what are you looking for"
-          placeholderTextColor={SiftColors.boneDim}
+          accessibilityLabel="Search query"
           style={styles.queryInput}
         />
         <Text style={styles.queryHelper}>RESOLUTION A–C · EXTRACTION T3, T4</Text>
@@ -112,10 +114,8 @@ const styles = StyleSheet.create({
   queryBox: { borderWidth: 1, borderColor: SiftColors.graphite },
   queryInput: {
     height: 44,
-    backgroundColor: SiftColors.carbon,
+    borderWidth: 0,
     borderBottomWidth: 1,
-    borderBottomColor: SiftColors.graphite,
-    color: SiftColors.bone,
     fontFamily: SiftType.body.fontFamily,
     fontSize: 20,
     paddingHorizontal: 12,
@@ -138,17 +138,13 @@ const styles = StyleSheet.create({
   addRow: { flexDirection: 'row', marginTop: SiftSpacing.space1 },
   urlInput: {
     flex: 1,
-    height: 32,
+    height: 34,
     minWidth: 0,
-    backgroundColor: SiftColors.carbon,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
     borderRightWidth: 0,
-    color: SiftColors.bone,
-    fontFamily: SiftType.label.fontFamily,
-    fontSize: 11,
-    paddingHorizontal: 8,
+    fontFamily: SiftType.body.fontFamily,
+    fontSize: 14,
+    paddingHorizontal: SiftSpacing.space3,
   },
-  addButton: { minWidth: 0, height: 32, paddingHorizontal: 12 },
+  addButton: { minWidth: 0, height: 34, paddingHorizontal: 12 },
   hint: { ...SiftType.annot, color: SiftColors.boneDim },
 });
