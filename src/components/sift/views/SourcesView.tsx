@@ -23,6 +23,7 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
       ))}
       <View style={styles.addRow}>
         <TextInput
+          disableFullscreenUI
           value={state.input}
           onChangeText={actions.setInput}
           onSubmitEditing={actions.addSourceFromInput}
@@ -43,6 +44,7 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
       <CommandHeading sigil="//" text="QUERY" />
       <View style={styles.queryBox}>
         <TextInput
+          disableFullscreenUI
           value={state.query}
           onChangeText={actions.setQuery}
           placeholder="what are you looking for"

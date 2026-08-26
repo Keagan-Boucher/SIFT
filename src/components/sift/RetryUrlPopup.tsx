@@ -36,6 +36,7 @@ export function RetryUrlPopup({ domain, onSubmit, onClose }: RetryUrlPopupProps)
           search for every future query, not just this one.
         </Text>
         <TextInput
+          disableFullscreenUI
           style={styles.input}
           value={url}
           onChangeText={setUrl}

@@ -100,6 +100,7 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
             <Text style={styles.blurb}>{copy.blurb}</Text>
 
             <TextInput
+              disableFullscreenUI
               style={styles.input}
               value={emailInput}
               onChangeText={setEmailInput}
@@ -110,6 +111,7 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
               textContentType="emailAddress"
             />
             <TextInput
+              disableFullscreenUI
               style={styles.input}
               value={password}
               onChangeText={setPassword}

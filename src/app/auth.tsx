@@ -1,6 +1,6 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/sift/Button';
@@ -44,6 +44,7 @@ function Field({ label, value, onChangeText, placeholder, height, secure, email 
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        disableFullscreenUI
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -169,37 +170,37 @@ export default function AuthScreen() {
   if (landscape) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.landscapeBody}>
-          <Rail screenName={copy.railName} connection="IDLE" sourceCount={0} />
-          <View style={styles.landscapeIntro}>
-            <Text style={styles.heading}>{copy.heading}</Text>
-            <Text style={styles.blurb}>{copy.blurb}</Text>
-          </View>
-          <ScrollView
-            style={styles.landscapeForm}
-            contentContainerStyle={styles.landscapeFormContent}
-            keyboardShouldPersistTaps="handled">
-            <View style={styles.fieldStack}>{fields}</View>
-            {forgot}
-            {notice}
-            <View style={styles.landscapeActions}>
-              <Button variant="primary" onPress={submit} disabled={!canSubmit} style={styles.landscapePrimary}>
-                {busy ? '...' : copy.action}
-              </Button>
-              <Button variant="ghost" onPress={guest} disabled={busy} style={styles.landscapeGuest}>
-                CONTINUE AS GUEST
-              </Button>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.landscapeBody}>
+            <Rail screenName={copy.railName} connection="IDLE" sourceCount={0} />
+            <View style={styles.landscapeIntro}>
+              <Text style={styles.heading}>{copy.heading}</Text>
+              <Text style={styles.blurb}>{copy.blurb}</Text>
             </View>
-            {swapLine}
-          </ScrollView>
-        </View>
+            <View style={styles.landscapeForm}>
+              <View style={styles.fieldStack}>{fields}</View>
+              {forgot}
+              {notice}
+              <View style={styles.landscapeActions}>
+                <Button variant="primary" onPress={submit} disabled={!canSubmit} style={styles.landscapePrimary}>
+                  {busy ? '...' : copy.action}
+                </Button>
+                <Button variant="ghost" onPress={guest} disabled={busy} style={styles.landscapeGuest}>
+                  CONTINUE AS GUEST
+                </Button>
+              </View>
+              {swapLine}
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.portraitBody} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.portraitBody} keyboardShouldPersistTaps="handled">
         <View style={styles.wordmarkRow}>
           <SiftMark width={24} />
           <Text style={styles.wordmark}>SIFT</Text>
@@ -226,15 +227,17 @@ export default function AuthScreen() {
           CONTINUE AS GUEST
         </Button>
 
-        <View style={styles.spacer} />
-        {swapLine}
-      </ScrollView>
+          <View style={styles.spacer} />
+          {swapLine}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: SiftColors.void },
+  flex: { flex: 1 },
 
   landscapeBody: { flex: 1, flexDirection: 'row', minHeight: 0 },
   landscapeIntro: {
@@ -246,13 +249,12 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: SiftColors.graphite,
   },
-  landscapeForm: { flex: 1 },
-  landscapeFormContent: {
-    flexGrow: 1,
+  landscapeForm: {
+    flex: 1,
     justifyContent: 'center',
-    gap: SiftSpacing.space3,
+    gap: SiftSpacing.space2,
     paddingHorizontal: SiftSpacing.space5,
-    paddingVertical: SiftSpacing.space4,
+    paddingVertical: SiftSpacing.space3,
   },
   landscapeActions: {
     flexDirection: 'row',
