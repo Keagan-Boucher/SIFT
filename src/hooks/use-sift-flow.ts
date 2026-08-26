@@ -4,7 +4,6 @@ import { SiftColors } from '@/constants/sift-theme';
 import { fmtPrice } from '@/lib/format-price';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
-import { useDemoSession } from '@/hooks/session/use-demo-session';
 import { useLiveSession } from '@/hooks/session/use-live-session';
 import { useFlowStore, type Screen } from '@/store/useFlowStore';
 import type { RecentView } from '@/types/view';
@@ -32,11 +31,10 @@ export function useSiftFlow() {
   const state = useFlowStore();
 
   const auth = useAuth();
-  const live = useLiveSession(auth.user?.uid ?? null);
-  const demo = useDemoSession();
-
-  // Live only once there is a project and a signed-in uid to own the documents.
-  const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
+  const session = useLiveSession(auth.user?.uid ?? null);
+  // Without a project there is nothing behind the screens: they render empty
+  // and the account panel says why.
+  const noProject = !isFirebaseConfigured;
 
   const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry, openDiscard, closeDiscard } = state;
   /** Reuses a past search: its query, plus its sources merged into whatever is already staged. */
@@ -181,7 +179,7 @@ export function useSiftFlow() {
           ? `${blockedSources} BLOCKED · REMOVE TO CONTINUE`
           : failedSources > 0
             ? `${sources.length} SOURCES · ${failedSources} UNREADABLE`
-            : `${sources.length} SOURCES · ${session.mode === 'demo' ? 'DEMO' : 'IDLE'}`,
+            : `${sources.length} SOURCES · ${noProject ? 'NO PROJECT' : 'IDLE'}`,
       live: running
         ? `${resolved}/${sources.length} RESOLVED · LIVE`
         : openIssues > 0
@@ -317,7 +315,7 @@ export function useSiftFlow() {
     ];
 
     return {
-      mode: session.mode,
+      mode: noProject ? ('demo' as const) : ('live' as const),
       error: session.error,
       authPhase: auth.phase,
       isGuest: auth.isGuest,
@@ -378,6 +376,7 @@ export function useSiftFlow() {
   }, [
     state,
     session,
+    noProject,
     auth.phase,
     auth.isGuest,
     auth.user?.email,

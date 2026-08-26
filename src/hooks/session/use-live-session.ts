@@ -263,7 +263,6 @@ export function useLiveSession(userId: string | null): SiftSession {
 
   return useMemo<SiftSession>(
     () => ({
-      mode: 'live',
       error,
       sources,
       tiles: toTileViews(shown),

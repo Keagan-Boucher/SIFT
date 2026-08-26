@@ -6,8 +6,6 @@ import type { CandidateView, NoteView, RecentView, SavedItemView, SourceView, Ti
  * which one it is running on.
  */
 export interface SiftSession {
-  /** 'live' once Firebase is configured and signed in, 'demo' otherwise. */
-  mode: 'live' | 'demo';
   /** Set in live mode when the backend refuses or a listener fails. */
   error: string | null;
 

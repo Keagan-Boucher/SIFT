@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 
-import { DEFAULT_QUERY } from '@/constants/sift-mock-data';
 import type { NoteView } from '@/types/view';
 
 export type Screen = 'sources' | 'live' | 'confirm' | 'results' | 'dashboard' | 'saved';
@@ -52,7 +51,7 @@ interface FlowStore {
 export const useFlowStore = create<FlowStore>((set) => ({
   screen: 'sources',
   input: '',
-  query: DEFAULT_QUERY,
+  query: '',
   showArchive: false,
   showAccount: false,
   showLinks: false,
