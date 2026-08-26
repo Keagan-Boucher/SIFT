@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
+import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { Button } from './Button';
 import { Input } from './Input';
-import { CommandHeading } from './CommandHeading';
+import { Popup } from './Popup';
 
 interface RetryUrlPopupProps {
   domain: string;
@@ -23,14 +23,7 @@ export function RetryUrlPopup({ domain, onSubmit, onClose }: RetryUrlPopupProps)
   const canSubmit = /^https?:\/\/.+/i.test(url.trim());
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.header}>
-        <CommandHeading sigil="//" text="RETRY_WITH_URL" suffix={domain} />
-        <Pressable onPress={onClose} style={styles.close} accessibilityLabel="Close retry panel">
-          <Text style={styles.closeLabel}>×</Text>
-        </Pressable>
-      </View>
-
+    <Popup text="RETRY_WITH_URL" suffix={domain} onClose={onClose} closeLabel="Close retry panel">
       <View style={styles.body}>
         <Text style={styles.blurb}>
           Search {domain} for anything, then paste the URL of its results page. That teaches SIFT this site&apos;s
@@ -51,27 +44,11 @@ export function RetryUrlPopup({ domain, onSubmit, onClose }: RetryUrlPopupProps)
           ADD LINK
         </Button>
       </View>
-    </View>
+    </Popup>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    width: 344,
-    backgroundColor: SiftColors.void,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
-  },
-  header: {
-    height: 28,
-    backgroundColor: SiftColors.slate,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SiftSpacing.space3,
-  },
-  close: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  closeLabel: { fontFamily: SiftFontFamily.system, fontSize: 14, color: SiftColors.boneDim },
   body: { padding: SiftSpacing.space3, gap: SiftSpacing.space2 },
   blurb: { ...SiftType.body, color: SiftColors.boneDim },
   input: {

@@ -3,7 +3,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
-import { CommandHeading } from './CommandHeading';
+import { Popup } from './Popup';
 
 export interface ListingDetail {
   title: string;
@@ -34,13 +34,7 @@ export function ListingDetailPopup({ listing, onClose, style }: ListingDetailPop
   };
 
   return (
-    <View style={[styles.wrap, style]}>
-      <View style={styles.header}>
-        <CommandHeading sigil="//" text="LISTING_DETAIL" />
-        <Pressable onPress={onClose} style={styles.close}>
-          <Text style={styles.closeLabel}>×</Text>
-        </Pressable>
-      </View>
+    <Popup text="LISTING_DETAIL" onClose={onClose} closeLabel="Close listing detail" style={[styles.wrap, style]}>
       <View style={styles.body}>
         <Text style={styles.title} numberOfLines={2}>
           {listing.title}
@@ -62,7 +56,7 @@ export function ListingDetailPopup({ listing, onClose, style }: ListingDetailPop
         </View>
         {listing.issue && <Text style={styles.issue}>!REVIEW · 2 CANDIDATES, NEITHER ABOVE 60%</Text>}
       </View>
-    </View>
+    </Popup>
   );
 }
 
@@ -76,22 +70,7 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    width: 320,
-    backgroundColor: SiftColors.void,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
-  },
-  header: {
-    height: 28,
-    backgroundColor: SiftColors.slate,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 8,
-  },
-  close: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: SiftColors.graphite },
-  closeLabel: { color: SiftColors.bone, fontSize: 14, lineHeight: 14 },
+  wrap: { width: 320 },
   body: { padding: SiftSpacing.space3, gap: SiftSpacing.space2 },
   title: { ...SiftType.title, color: SiftColors.bone },
   url: { ...SiftType.annot, color: SiftColors.mint, textDecorationLine: 'underline' },

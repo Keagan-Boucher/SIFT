@@ -1,9 +1,9 @@
 import type { CandidateView, NoteView, RecentView, SavedItemView, SourceView, TileView } from '@/types/view';
 
 /**
- * What a screen needs from whatever is behind it. The seeded demo dataset and
- * the live Firestore pipeline both satisfy this, so no view component knows
- * which one it is running on.
+ * What a screen needs from whatever is behind it. The live Firestore pipeline
+ * satisfies this, and the boundary is what keeps the view components ignorant
+ * of Firestore.
  */
 export interface SiftSession {
   /** Set in live mode when the backend refuses or a listener fails. */

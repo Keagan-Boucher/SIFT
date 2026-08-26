@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
+import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { Button } from './Button';
-import { CommandHeading } from './CommandHeading';
+import { Popup } from './Popup';
 
 interface DiscardPopupProps {
   domain: string;
@@ -17,14 +17,7 @@ interface DiscardPopupProps {
  */
 export function DiscardPopup({ domain, onDiscard, onClose }: DiscardPopupProps) {
   return (
-    <View style={styles.wrap}>
-      <View style={styles.header}>
-        <CommandHeading sigil="!" text="DISCARD_RESULT" suffix={domain} />
-        <Pressable onPress={onClose} style={styles.close} accessibilityLabel="Close discard panel">
-          <Text style={styles.closeLabel}>×</Text>
-        </Pressable>
-      </View>
-
+    <Popup sigil="!" text="DISCARD_RESULT" suffix={domain} onClose={onClose} closeLabel="Close discard panel">
       <View style={styles.body}>
         <Text style={styles.blurb}>
           Nothing from {domain} will be shown for this search. Every other source keeps its price, and this one is
@@ -39,27 +32,11 @@ export function DiscardPopup({ domain, onDiscard, onClose }: DiscardPopupProps) 
           </Button>
         </View>
       </View>
-    </View>
+    </Popup>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    width: 344,
-    backgroundColor: SiftColors.void,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
-  },
-  header: {
-    height: 28,
-    backgroundColor: SiftColors.slate,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SiftSpacing.space3,
-  },
-  close: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  closeLabel: { fontFamily: SiftFontFamily.system, fontSize: 14, color: SiftColors.boneDim },
   body: { padding: SiftSpacing.space3, gap: SiftSpacing.space3 },
   blurb: { ...SiftType.body, color: SiftColors.boneDim },
   buttons: { flexDirection: 'row', gap: SiftSpacing.space2 },

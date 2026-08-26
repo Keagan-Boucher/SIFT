@@ -18,13 +18,21 @@ const firebaseConfig = {
 };
 
 /**
- * With no project configured the app runs on the seeded dataset instead of
- * failing at launch. That keeps it demoable on a machine with no Firebase
- * credentials, and it is the honest signal for which mode the UI is in.
+ * With no project configured the app still launches, with nothing behind the
+ * screens, rather than failing outright. It is the honest signal for which
+ * mode the UI is in, and the account panel says so in words.
  */
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
 const useEmulator = process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
+
+/**
+ * Whether there is anything behind the screens. The emulator suite is a real
+ * backend and accepts the placeholder project below, so pointing at it counts
+ * even with no cloud credentials in .env. Ask this, not isFirebaseConfigured,
+ * before deciding the app has nothing to talk to.
+ */
+export const hasBackend = isFirebaseConfigured || useEmulator;
 
 /**
  * A device on the same network cannot reach the emulator on localhost, so fall

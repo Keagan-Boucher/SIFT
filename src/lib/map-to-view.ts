@@ -1,7 +1,6 @@
 /**
  * Firestore documents into the shapes the screens render. Keeping this in one
- * place is what lets the seeded demo dataset and the live stream drive the same
- * components.
+ * place is what keeps raw document shapes out of the view components.
  */
 
 import { fmtPrice } from '@/lib/format-price';

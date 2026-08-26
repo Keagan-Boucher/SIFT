@@ -1,7 +1,7 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
-import { CommandHeading } from './CommandHeading';
+import { Popup } from './Popup';
 
 export interface ArchiveLogEntry {
   id: string;
@@ -26,13 +26,7 @@ export function AlertLogPopup({
   emptyText = 'No alerts yet. Dismissed alerts are kept here for the session.',
 }: AlertLogPopupProps) {
   return (
-    <View style={styles.wrap}>
-      <View style={styles.header}>
-        <CommandHeading sigil="//" text={title} suffix={count} />
-        <Pressable onPress={onClose} style={styles.close}>
-          <Text style={styles.closeLabel}>×</Text>
-        </Pressable>
-      </View>
+    <Popup text={title} suffix={count} onClose={onClose} closeLabel="Close alert log" style={styles.wrap}>
       {entries.length === 0 ? (
         <Text style={styles.empty}>{emptyText}</Text>
       ) : (
@@ -48,28 +42,12 @@ export function AlertLogPopup({
           ))}
         </ScrollView>
       )}
-    </View>
+    </Popup>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    width: 344,
-    maxHeight: 246,
-    backgroundColor: SiftColors.void,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
-  },
-  header: {
-    height: 28,
-    backgroundColor: SiftColors.slate,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 8,
-  },
-  close: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: SiftColors.graphite },
-  closeLabel: { color: SiftColors.bone, fontSize: 14, lineHeight: 14 },
+  wrap: { maxHeight: 246 },
   empty: { ...SiftType.body, color: SiftColors.boneDim, padding: SiftSpacing.space3 },
   list: {},
   entry: { gap: 4, padding: SiftSpacing.space2, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: SiftColors.graphite },
