@@ -14,9 +14,9 @@ import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar, setStatusBarHidden } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { Keyboard, Platform, useWindowDimensions } from 'react-native';
 
 import { AuthProvider } from '@/hooks/use-auth';
 
@@ -33,6 +33,21 @@ export default function RootLayout() {
     Archivo_400Regular,
     Archivo_500Medium,
   });
+
+  // Android brings the system bars back whenever the keyboard opens or closes.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !landscape) {
+      return;
+    }
+    const hide = () => {
+      NavigationBar.setHidden(true);
+      setStatusBarHidden(true);
+    };
+    const subs = (['keyboardDidShow', 'keyboardDidHide'] as const).map((event) =>
+      Keyboard.addListener(event, hide)
+    );
+    return () => subs.forEach((sub) => sub.remove());
+  }, [landscape]);
 
   useEffect(() => {
     if (fontsLoaded) {
