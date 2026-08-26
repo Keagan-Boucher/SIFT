@@ -15,7 +15,7 @@ export const PRESET_CATEGORIES: PresetCategory[] = [
     id: 'tech',
     name: 'TECH',
     blurb: 'Components, peripherals and prebuilt machines.',
-    domains: ['evetech.co.za', 'wootware.co.za', 'takealot.com', 'incredible.co.za'],
+    domains: ['evetech.co.za', 'takealot.com'],
   },
   {
     id: 'trading-cards',
