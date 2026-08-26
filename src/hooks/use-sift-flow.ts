@@ -277,49 +277,12 @@ export function useSiftFlow() {
 
     // The Learn Something side of the app: what the lowest price actually means,
     // stated in the numbers this search produced rather than a fixed line.
-    const historyLow = history.length > 0 ? Math.min(...history) : null;
-    const aboveRecordLow =
-      cheapest && historyLow !== null && historyLow > 0
-        ? Math.round(((cheapest.value - historyLow) / historyLow) * 1000) / 10
-        : null;
-
-    const resultInsight = !cheapest
-      ? 'No prices came back yet. Add a source or widen the query.'
-      : [
-          `${cheapest.price} is the lowest of your ${tiles.length} ${tiles.length === 1 ? 'source' : 'sources'}`,
-          sorted.length > 1 ? `, ${spread}% below the dearest` : '',
-          aboveRecordLow === null
-            ? '. Watch it to start recording what it usually costs.'
-            : aboveRecordLow <= 0
-              ? `. That is the lowest figure recorded across ${history.length} checks.`
-              : `, and ${aboveRecordLow}% above the lowest of the ${history.length} checks recorded so far.`,
-        ].join('');
-
     const confirmDomain = selectedTile?.domain ?? tiles.find((tile) => tile.issue)?.domain ?? 'this source';
     const confirmSuffix = `${candidates.length}_LOW_CONFIDENCE`;
     const confirmInsight =
       candidates.length === 0
         ? 'Nothing to confirm. Every source matched above the threshold.'
         : `${confirmDomain} returned ${candidates.length} listings for this query and the best scored ${Math.round((candidates[0]?.confidence ?? 0) * 100)}%, which does not clear the 60% needed to trust it. The one you pick is the one compared, and it is counted against this source for next time.`;
-
-    // The average of the two middle values on an even count. Taking the lower
-    // one made the median equal the cheapest price whenever two sources
-    // returned, which read as "0% below the median" and taught nothing.
-    const median = (() => {
-      if (sorted.length === 0) return null;
-      const mid = Math.floor(sorted.length / 2);
-      return sorted.length % 2 === 1
-        ? sorted[mid].value
-        : Math.round((sorted[mid - 1].value + sorted[mid].value) / 2);
-    })();
-    const belowMedian =
-      cheapest && median && median > 0 ? Math.round(((median - cheapest.value) / median) * 100) : 0;
-
-    const liveInsight = !cheapest
-      ? 'Waiting on the first price.'
-      : sorted.length > 1
-        ? `${cheapest.price} is the lowest of ${tiles.length} sources, ${belowMedian}% below their median of ${fmtPrice(median as number)}.`
-        : `${cheapest.price} from ${cheapest.retailer}. Add another source to see how that compares.`;
 
     const historyTrend =
       history.length > 1 ? (history[history.length - 1] < history[history.length - 2] ? 'FALLING' : 'RISING') : 'FLAT';
@@ -382,12 +345,10 @@ export function useSiftFlow() {
       candidateSelectedLabel: selectedCandidate
         ? `${selectedCandidate.price} · ${Math.round(selectedCandidate.confidence * 100)}%`
         : 'NONE',
-      liveInsight,
       historySuffix: `${String(history.length).padStart(2, '0')}_CHECKS`,
       historySummary,
       confirmSuffix,
       confirmInsight,
-      resultInsight,
       resultMetadata,
       spreadPoints: sorted.map((tile) => ({ value: tile.value, priceLabel: tile.price, label: tile.retailer.toUpperCase() })),
       spreadLabel: `SPREAD · ${spread}% · N=${tiles.length} · TIERS ${tiles.map((tile) => `T${tile.tier}`).join(' ')}`,

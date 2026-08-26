@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CommandHeading } from '@/components/sift/CommandHeading';
 import { CornerBrackets } from '@/components/sift/CornerBrackets';
-import { InsightCard } from '@/components/sift/InsightCard';
 import { PlusGrid } from '@/components/sift/PlusGrid';
 import { ProgressBar } from '@/components/sift/ProgressBar';
 import { ResultTile } from '@/components/sift/ResultTile';
@@ -18,7 +17,7 @@ interface LiveViewProps {
 }
 
 export function LiveView({ flow }: LiveViewProps) {
-  const { state, resolved, running, complete, sources, tiles, liveInsight } = flow;
+  const { state, resolved, running, sources, tiles } = flow;
   const heading = running ? 'SEARCH_RUNNING' : 'SEARCH_COMPLETE';
   const suffix = `${resolved}/${sources.length}`;
   // Placeholders only mean anything while sources are still reporting in.
@@ -69,12 +68,6 @@ export function LiveView({ flow }: LiveViewProps) {
           </View>
         ))}
       </View>
-
-      {complete && (
-        <InsightCard heading="WHY_THIS_PRICE" style={styles.insight}>
-          {liveInsight}
-        </InsightCard>
-      )}
     </View>
   );
 }
@@ -92,5 +85,4 @@ const styles = StyleSheet.create({
   slotCol: { gap: 5 },
   slot: { position: 'relative', width: 160, height: 96, borderWidth: 1, borderColor: SiftColors.graphite },
   slotLabel: { ...SiftType.annot, color: SiftColors.boneDim, width: 160 },
-  insight: { maxWidth: 420, alignSelf: 'flex-start' },
 });
