@@ -38,6 +38,13 @@ const styles = StyleSheet.create({
     borderColor: SiftColors.graphite,
     borderRadius: SiftRadius,
     color: SiftColors.bone,
+    // Android reserves extra room above and below the line for ascenders and
+    // descenders, and leaves a single line unaligned in a fixed-height field.
+    // The leftover slack is draggable, so the text scrolls inside a box that
+    // is only ever one line tall. These two settle the line in the middle and
+    // leave nothing to scroll.
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   focused: { borderColor: SiftColors.acid },
 });

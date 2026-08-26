@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { Button } from './Button';
+import { Input } from './Input';
 import { CommandHeading } from './CommandHeading';
 
 interface RetryUrlPopupProps {
@@ -35,13 +36,12 @@ export function RetryUrlPopup({ domain, onSubmit, onClose }: RetryUrlPopupProps)
           Search {domain} for anything, then paste the URL of its results page. That teaches SIFT this site&apos;s
           search for every future query, not just this one.
         </Text>
-        <TextInput
-          disableFullscreenUI
+        <Input
           style={styles.input}
           value={url}
           onChangeText={setUrl}
           placeholder={`https://${domain}/search?q=...`}
-          placeholderTextColor={SiftColors.boneDim}
+          accessibilityLabel="Search results URL"
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
@@ -76,10 +76,7 @@ const styles = StyleSheet.create({
   blurb: { ...SiftType.body, color: SiftColors.boneDim },
   input: {
     height: 32,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
     paddingHorizontal: SiftSpacing.space2,
     ...SiftType.body,
-    color: SiftColors.bone,
   },
 });

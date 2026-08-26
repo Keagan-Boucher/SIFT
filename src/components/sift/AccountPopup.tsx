@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { CommandHeading } from './CommandHeading';
 import { Button } from './Button';
+import { Input } from './Input';
 import { signInWithEmail, signOutUser, upgradeGuestToEmail } from '@/hooks/use-auth';
 
 interface AccountPopupProps {
@@ -99,24 +100,22 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
 
             <Text style={styles.blurb}>{copy.blurb}</Text>
 
-            <TextInput
-              disableFullscreenUI
+            <Input
               style={styles.input}
               value={emailInput}
               onChangeText={setEmailInput}
               placeholder="email"
-              placeholderTextColor={SiftColors.boneDim}
+              accessibilityLabel="Email"
               autoCapitalize="none"
               keyboardType="email-address"
               textContentType="emailAddress"
             />
-            <TextInput
-              disableFullscreenUI
+            <Input
               style={styles.input}
               value={password}
               onChangeText={setPassword}
               placeholder="password, 6 characters or more"
-              placeholderTextColor={SiftColors.boneDim}
+              accessibilityLabel="Password"
               autoCapitalize="none"
               secureTextEntry
             />
@@ -160,11 +159,8 @@ const styles = StyleSheet.create({
   blurb: { ...SiftType.body, color: SiftColors.boneDim },
   input: {
     height: 32,
-    borderWidth: 1,
-    borderColor: SiftColors.graphite,
     paddingHorizontal: SiftSpacing.space2,
     ...SiftType.body,
-    color: SiftColors.bone,
   },
   error: { ...SiftType.annot, color: SiftColors.ember },
   done: { ...SiftType.annot, color: SiftColors.mint },
