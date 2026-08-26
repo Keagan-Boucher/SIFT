@@ -1,5 +1,5 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { CommandHeading } from './CommandHeading';
@@ -22,6 +22,12 @@ interface ListingDetailPopupProps {
 }
 
 export function ListingDetailPopup({ listing, onClose, style }: ListingDetailPopupProps) {
+  // A listing the user cannot reach is half a result: the URL opens the page.
+  // A URL the device refuses to handle simply does nothing, as before.
+  const openListing = () => {
+    Linking.openURL(listing.url).catch(() => {});
+  };
+
   return (
     <View style={[styles.wrap, style]}>
       <View style={styles.header}>
@@ -34,7 +40,12 @@ export function ListingDetailPopup({ listing, onClose, style }: ListingDetailPop
         <Text style={styles.title} numberOfLines={2}>
           {listing.title}
         </Text>
-        <Text style={styles.url}>{listing.url}</Text>
+        <Pressable onPress={openListing} accessibilityRole="link" accessibilityLabel={`Open ${listing.url}`}>
+          <Text style={styles.url} numberOfLines={2}>
+            {listing.url}
+          </Text>
+          <Text style={styles.openHint}>TAP TO OPEN IN BROWSER</Text>
+        </Pressable>
         <View style={styles.grid}>
           <Row label="PRICE" value={listing.priceLine} />
           <Row label="METHOD" value={listing.method} />
@@ -76,7 +87,8 @@ const styles = StyleSheet.create({
   closeLabel: { color: SiftColors.bone, fontSize: 14, lineHeight: 14 },
   body: { padding: SiftSpacing.space3, gap: SiftSpacing.space2 },
   title: { ...SiftType.title, color: SiftColors.bone },
-  url: { ...SiftType.annot, color: SiftColors.boneDim },
+  url: { ...SiftType.annot, color: SiftColors.mint, textDecorationLine: 'underline' },
+  openHint: { ...SiftType.annot, color: SiftColors.boneDim, marginTop: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 4, columnGap: 12 },
   rowLabel: { ...SiftType.annot, color: SiftColors.boneDim, width: 90 },
   rowValue: { ...SiftType.annot, color: SiftColors.bone },

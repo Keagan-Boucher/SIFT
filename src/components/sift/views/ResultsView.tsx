@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CommandHeading } from '@/components/sift/CommandHeading';
 import { ResultTile } from '@/components/sift/ResultTile';
@@ -12,17 +12,22 @@ interface ResultsViewProps {
 }
 
 export function ResultsView({ flow, orientation }: ResultsViewProps) {
-  const { resultSuffix, tiles, resultMetadata } = flow;
+  const { resultSuffix, tiles, resultMetadata, actions } = flow;
 
   const tileGrid = (
     <View style={styles.tiles}>
-      {tiles.map((tile) => (
-        <View key={tile.retailer} style={styles.tileCol}>
+      {tiles.map((tile, index) => (
+        <Pressable
+          key={tile.retailer}
+          onPress={() => actions.selectTile(index)}
+          accessibilityRole="button"
+          accessibilityLabel={`${tile.retailer}, ${tile.price}`}
+          style={styles.tileCol}>
           <ResultTile title={tile.title} tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
           <Text style={styles.tileDomain} numberOfLines={1}>
             {tile.domain}
           </Text>
-        </View>
+        </Pressable>
       ))}
     </View>
   );

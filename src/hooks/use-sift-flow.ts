@@ -159,7 +159,12 @@ export function useSiftFlow() {
     }));
 
     const resolved = tiles.length;
-    const sorted = [...tiles].sort((a, b) => a.value - b.value);
+    // Sorted for display, but each entry keeps its index in tiles so tapping a
+    // bar or an axis point can open the same listing popup the result tiles do.
+    const sortedEntries = tiles
+      .map((tile, index) => ({ tile, index }))
+      .sort((a, b) => a.tile.value - b.tile.value);
+    const sorted = sortedEntries.map((entry) => entry.tile);
     const cheapest = sorted[0];
     const dearest = sorted[sorted.length - 1];
     const spread =
@@ -279,7 +284,8 @@ export function useSiftFlow() {
     }));
 
     const priceRange = sorted.length > 1 ? dearest.value - cheapest.value : 0;
-    const ladder = sorted.map((tile) => ({
+    const ladder = sortedEntries.map(({ tile, index }) => ({
+      tileIndex: index,
       label: tile.retailer.toUpperCase(),
       price: tile.price,
       widthPct: 10 + (priceRange > 0 ? ((tile.value - cheapest.value) / priceRange) * 90 : 90),
@@ -388,7 +394,12 @@ export function useSiftFlow() {
       confirmSuffix,
       confirmInsight,
       resultMetadata,
-      spreadPoints: sorted.map((tile) => ({ value: tile.value, priceLabel: tile.price, label: tile.retailer.toUpperCase() })),
+      spreadPoints: sortedEntries.map(({ tile, index }) => ({
+        tileIndex: index,
+        value: tile.value,
+        priceLabel: tile.price,
+        label: tile.retailer.toUpperCase(),
+      })),
       spreadLabel: `SPREAD · ${spread}% · N=${tiles.length} · TIERS ${tiles.map((tile) => `T${tile.tier}`).join(' ')}`,
       resultSuffix: `${tiles.length}_PRICES`,
       archiveLabeled: dismissed.map((note) => ({

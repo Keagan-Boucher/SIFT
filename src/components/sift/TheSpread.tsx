@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { POINT_WIDTH, layoutPoints } from '@/lib/spread-layout';
@@ -15,10 +15,12 @@ export interface SpreadPoint {
 interface TheSpreadProps {
   points: SpreadPoint[];
   spreadLabel: string;
+  /** Opens the listing behind a point. Index is into `points`. */
+  onSelect?: (index: number) => void;
   style?: StyleProp<ViewStyle>;
 }
 
-export function TheSpread({ points, spreadLabel, style }: TheSpreadProps) {
+export function TheSpread({ points, spreadLabel, onSelect, style }: TheSpreadProps) {
   const [width, setWidth] = useState(0);
   const prices = points.map((p) => p.value);
   const min = Math.min(...prices);
@@ -43,7 +45,12 @@ export function TheSpread({ points, spreadLabel, style }: TheSpreadProps) {
           <>
             <View style={[styles.medianLine, { left: medianLeft }]} />
             {points.map((p, i) => (
-              <View key={i} style={[styles.point, { left: lefts[i] }]}>
+              <Pressable
+                key={i}
+                onPress={onSelect ? () => onSelect(i) : undefined}
+                accessibilityRole="button"
+                accessibilityLabel={`${p.label}, ${p.priceLabel}`}
+                style={[styles.point, { left: lefts[i] }]}>
                 <Text
                   style={[
                     styles.pointPrice,
@@ -56,7 +63,7 @@ export function TheSpread({ points, spreadLabel, style }: TheSpreadProps) {
                 <Text style={styles.pointLabel} numberOfLines={1}>
                   {p.label}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </>
         )}

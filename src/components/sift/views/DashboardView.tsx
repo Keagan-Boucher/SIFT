@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CommandHeading } from '@/components/sift/CommandHeading';
 import { InsightCard } from '@/components/sift/InsightCard';
@@ -13,7 +13,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ flow, orientation }: DashboardViewProps) {
-  const { resultSuffix, spreadPoints, spreadLabel, ladder, historyBars, historySummary, historySuffix } = flow;
+  const { resultSuffix, spreadPoints, spreadLabel, ladder, historyBars, historySummary, historySuffix, actions } = flow;
 
   const history = (
     <View style={styles.historySection}>
@@ -42,7 +42,12 @@ export function DashboardView({ flow, orientation }: DashboardViewProps) {
       <View style={styles.row}>
         <View style={styles.spreadCol}>
           <CommandHeading sigil="//" text="SPREAD" suffix={resultSuffix} />
-          <TheSpread points={spreadPoints} spreadLabel={spreadLabel} />
+          <TheSpread
+            points={spreadPoints}
+            spreadLabel={spreadLabel}
+            onSelect={(index) => actions.selectTile(spreadPoints[index].tileIndex)}
+          />
+          <Text style={styles.tapHint}>TAP A RETAILER FOR ITS LISTING</Text>
         </View>
         <View style={styles.sidebar}>
           {history}
@@ -57,16 +62,22 @@ export function DashboardView({ flow, orientation }: DashboardViewProps) {
       <CommandHeading sigil="//" text="SPREAD" suffix={resultSuffix} />
       <View>
         {ladder.map((row) => (
-          <View key={row.label} style={styles.ladderRow}>
+          <Pressable
+            key={row.label}
+            onPress={() => actions.selectTile(row.tileIndex)}
+            accessibilityRole="button"
+            accessibilityLabel={`${row.label}, ${row.price}`}
+            style={styles.ladderRow}>
             <View style={styles.ladderHeader}>
               <Text style={styles.ladderLabel}>{row.label}</Text>
               <Text style={styles.ladderPrice}>{row.price}</Text>
             </View>
             <View style={[styles.ladderBar, { width: `${row.widthPct}%`, backgroundColor: row.color }]} />
-          </View>
+          </Pressable>
         ))}
       </View>
       <Text style={styles.spreadLabelText}>{spreadLabel}</Text>
+      <Text style={styles.tapHint}>TAP A RETAILER FOR ITS LISTING</Text>
       {history}
       {readInsight}
     </View>
@@ -77,6 +88,7 @@ const styles = StyleSheet.create({
   row: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: SiftSpacing.space4, padding: SiftSpacing.space4 },
   col: { gap: SiftSpacing.space4, padding: SiftSpacing.space4 },
   spreadCol: { flex: 1, minWidth: 280, gap: SiftSpacing.space2 },
+  tapHint: { ...SiftType.annot, color: SiftColors.boneDim, textTransform: 'uppercase' },
   sidebar: { flexBasis: 264, flexGrow: 0, flexShrink: 1, minWidth: 220, maxWidth: 320, gap: SiftSpacing.space3 },
   ladderRow: { gap: 6, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: SiftColors.graphite },
   ladderHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
