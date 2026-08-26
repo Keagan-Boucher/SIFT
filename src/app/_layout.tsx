@@ -14,6 +14,7 @@ import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useWindowDimensions } from 'react-native';
 
@@ -23,6 +24,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const [fontsLoaded] = useFonts({
     BigShouldersDisplay_700Bold,
     BigShouldersDisplay_800ExtraBold,
@@ -44,7 +46,8 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <NavigationBar hidden={width > height} />
+      <StatusBar hidden={landscape} />
+      <NavigationBar hidden={landscape} />
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
     </AuthProvider>
   );
