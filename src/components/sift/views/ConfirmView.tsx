@@ -21,7 +21,7 @@ export function ConfirmView({ flow, orientation }: ConfirmViewProps) {
     <View style={styles.list}>
       <CommandHeading sigil=">" text="CONFIRM" suffix={confirmSuffix} />
       {candidates.map((c, i) => (
-        <Pressable key={c.title} onPress={() => actions.chooseCandidate(i)} style={styles.candidate}>
+        <Pressable key={`${c.title}-${i}`} onPress={() => actions.chooseCandidate(i)} style={styles.candidate}>
           <CornerBrackets active={state.chosen === i}>
             <ConfirmMatchCandidate title={c.title} price={c.price} confidence={c.confidence} />
           </CornerBrackets>

@@ -33,7 +33,7 @@ function recentLabel(search: SearchDoc): RecentView {
     search.status === 'complete'
       ? `${resolved} PRICES · ${search.sources.length} SOURCES`
       : search.status.toUpperCase();
-  return { name: search.query, meta };
+  return { id: search.id, name: search.query, meta };
 }
 
 /**

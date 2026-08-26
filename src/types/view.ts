@@ -64,6 +64,8 @@ export interface NoteView {
 }
 
 export interface RecentView {
+  /** Search document id. The same query can be run any number of times, so the name is not a key. */
+  id: string;
   name: string;
   meta: string;
 }

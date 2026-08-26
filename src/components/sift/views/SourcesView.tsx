@@ -61,7 +61,7 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
     <View style={styles.recentCol}>
       <CommandHeading sigil="//" text="RECENT" suffix={recentCount} />
       {recents.map((r) => (
-        <Pressable key={r.name} style={styles.recentRow} onPress={() => actions.chooseRecent(r.name)}>
+        <Pressable key={r.id} style={styles.recentRow} onPress={() => actions.chooseRecent(r.name)}>
           <Text style={styles.recentName} numberOfLines={1}>
             {r.name}
           </Text>
