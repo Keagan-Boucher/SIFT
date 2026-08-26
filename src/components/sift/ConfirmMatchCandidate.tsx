@@ -34,7 +34,7 @@ export function ConfirmMatchCandidate({ title, price, confidence, style }: Confi
 
 const styles = StyleSheet.create({
   card: { position: 'relative', overflow: 'hidden', backgroundColor: SiftColors.slate },
-  matrix: { opacity: 0.4 },
+  matrix: { opacity: 0.6 },
   info: { gap: 6, padding: SiftSpacing.space3 },
   title: { ...SiftType.title, color: SiftColors.bone },
   price: { ...SiftType.priceM, color: SiftColors.bone },
