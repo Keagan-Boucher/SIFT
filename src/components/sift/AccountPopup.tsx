@@ -22,8 +22,7 @@ type Intent = 'attach' | 'signin';
 const COPY: Record<Intent, { heading: string; blurb: string; action: string }> = {
   attach: {
     heading: 'KEEP_THIS_SESSION',
-    blurb:
-      'You are signed in as a guest. Your searches and watches already belong to you. Attach an email to keep them if you reinstall or change device.',
+    blurb: 'Signed in as a guest. Attach an email to save your searches.',
     action: 'ATTACH EMAIL',
   },
   signin: {
