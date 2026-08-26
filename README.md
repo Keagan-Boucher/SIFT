@@ -618,7 +618,7 @@ SIFT/
 │   ├── pipeline/              Search orchestration, confirm-match, scheduled rechecks
 │   ├── types/                 Shared backend types
 │   └── index.ts               Function exports
-├── assets/                    Icons, splash, tab imagery
+├── assets/                    App icon and native splash mark
 ├── docker-compose.yml         Emulator suite
 ├── Dockerfile.emulators       Node 20, JDK 21, firebase-tools, Chromium libraries
 ├── firebase.json              Emulator ports, rules, function config
