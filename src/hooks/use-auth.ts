@@ -22,6 +22,13 @@ export interface AuthState {
   phase: AuthPhase;
   /** True while the account is anonymous, which the settings strip offers to upgrade. */
   isGuest: boolean;
+  /**
+   * A real account, as opposed to no session or an anonymous one. This is what
+   * the gate opens for on launch: a guest has nothing to be signed in as, so
+   * they are asked again and choose guest again, which returns the same
+   * anonymous uid and therefore the same searches.
+   */
+  hasAccount: boolean;
   error: string | null;
 }
 
@@ -67,7 +74,13 @@ function useAuthWatcher(): AuthState {
   }, []);
 
   return useMemo(
-    () => ({ user, phase, isGuest: !!user?.isAnonymous, error: null }),
+    () => ({
+      user,
+      phase,
+      isGuest: !!user?.isAnonymous,
+      hasAccount: !!user && !user.isAnonymous,
+      error: null,
+    }),
     [user, phase],
   );
 }
@@ -84,7 +97,11 @@ export function useAuth(): AuthState {
   return value;
 }
 
-/** The guest escape on the auth screen: a real anonymous account, no details asked. */
+/**
+ * The guest escape on the auth screen: a real anonymous account, no details
+ * asked. Firebase returns the existing anonymous user when there is one, so a
+ * returning guest keeps the uid that owns their searches.
+ */
 export async function continueAsGuest(): Promise<void> {
   const result = await signInAnonymously(auth);
   await writeUserDoc(result.user);

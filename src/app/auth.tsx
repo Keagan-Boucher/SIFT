@@ -64,7 +64,7 @@ function Field({ label, value, onChangeText, placeholder, height, secure, email 
 
 export default function AuthScreen() {
   const orientation = useOrientation();
-  const { phase } = useAuth();
+  const { hasAccount } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -73,9 +73,9 @@ export default function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
-  // A session that restores after the splash gave up waiting still belongs in
-  // the app, not at the gate.
-  const signedIn = phase === 'ready';
+  // An account that restores after the splash gave up waiting still belongs in
+  // the app, not at the gate. A guest does not: they came here to choose.
+  const signedIn = hasAccount;
 
   const copy = COPY[mode];
   const landscape = orientation === 'landscape';

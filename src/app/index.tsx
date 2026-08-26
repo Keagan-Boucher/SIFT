@@ -35,7 +35,7 @@ const AUTH_TIMEOUT_MS = 5000;
 export default function SplashScreen() {
   useOrientationPolicy();
   const orientation = useOrientation();
-  const { phase } = useAuth();
+  const { phase, hasAccount } = useAuth();
   const [elapsed, setElapsed] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const progress = useSharedValue(0);
@@ -57,7 +57,7 @@ export default function SplashScreen() {
   const done = resolved || timedOut;
 
   if (elapsed && done) {
-    return <Redirect href={phase === 'ready' ? '/app' : '/auth'} />;
+    return <Redirect href={hasAccount ? '/app' : '/auth'} />;
   }
 
   const status = (
@@ -72,7 +72,7 @@ export default function SplashScreen() {
   );
 
   const skip = () => {
-    if (done) router.replace(phase === 'ready' ? '/app' : '/auth');
+    if (done) router.replace(hasAccount ? '/app' : '/auth');
   };
 
   if (orientation === 'landscape') {
