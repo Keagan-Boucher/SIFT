@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
 
-import { SiftColors, SiftRadius } from '@/constants/sift-theme';
+import { SiftColors, SiftFontFamily, SiftRadius, SiftType } from '@/constants/sift-theme';
 
 /**
  * Every text field in SIFT. Carries the two things a bare TextInput gets
@@ -33,6 +33,8 @@ export function Input({ style, onFocus, onBlur, ...rest }: TextInputProps) {
 
 const styles = StyleSheet.create({
   base: {
+    ...SiftType.body,
+    fontFamily: SiftFontFamily.system,
     backgroundColor: SiftColors.carbon,
     borderWidth: 1,
     borderColor: SiftColors.graphite,

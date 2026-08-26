@@ -9,6 +9,7 @@ import { HeaderStrip } from './HeaderStrip';
 import { Tag } from './Tag';
 
 interface ResultTileProps {
+  title?: string;
   tier?: 1 | 2 | 3 | 4 | 5;
   confidence?: number;
   price: string;
@@ -19,6 +20,7 @@ interface ResultTileProps {
 }
 
 export function ResultTile({
+  title,
   tier = 3,
   confidence = 3,
   price,
@@ -32,6 +34,11 @@ export function ResultTile({
       <HeaderStrip tier={tier} confidence={confidence} />
       <View style={styles.image}>
         <DotMatrix density="mid" />
+        {!!title && (
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+        )}
         {!!count && count > 1 && (
           <View style={styles.countBadge}>
             <CountChip count={count} />
@@ -51,10 +58,11 @@ const styles = StyleSheet.create({
   tile: {
     position: 'relative',
     width: 160,
-    height: 128,
+    height: 96,
     backgroundColor: SiftColors.slate,
   },
-  image: { position: 'relative', flex: 1, overflow: 'hidden' },
+  image: { position: 'relative', flex: 1, overflow: 'hidden', justifyContent: 'center', paddingHorizontal: 6 },
+  title: { ...SiftType.annot, color: SiftColors.paperHi },
   countBadge: { position: 'absolute', bottom: 4, right: 6 },
   footer: {
     flexDirection: 'row',

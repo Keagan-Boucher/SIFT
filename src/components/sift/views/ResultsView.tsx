@@ -19,7 +19,7 @@ export function ResultsView({ flow, orientation }: ResultsViewProps) {
     <View style={styles.tiles}>
       {tiles.map((tile) => (
         <View key={tile.retailer} style={styles.tileCol}>
-          <ResultTile tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
+          <ResultTile title={tile.title} tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
           <Text style={styles.tileDomain} numberOfLines={1}>
             {tile.domain}
           </Text>

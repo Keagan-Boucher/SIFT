@@ -49,7 +49,7 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
         <Input
           value={state.query}
           onChangeText={actions.setQuery}
-          placeholder="what are you looking for"
+          placeholder="input desired item"
           accessibilityLabel="Search query"
           style={styles.queryInput}
         />

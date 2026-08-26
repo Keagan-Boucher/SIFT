@@ -49,7 +49,7 @@ export function LiveView({ flow }: LiveViewProps) {
         {tiles.map((tile, i) => (
           <CornerBrackets key={tile.retailer} active={state.selected === i}>
             <Pressable onPress={() => flow.actions.selectTile(i)} style={styles.tileCol}>
-              <ResultTile tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
+              <ResultTile title={tile.title} tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
               <View style={styles.tileFooter}>
                 <Text style={styles.tileDomain} numberOfLines={1}>
                   {tile.domain}
