@@ -145,6 +145,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingHorizontal: SiftSpacing.space3,
   },
-  addButton: { minWidth: 0, height: 34, paddingHorizontal: 12 },
+  addButton: { minWidth: 0, height: 44, paddingHorizontal: 12 },
   hint: { ...SiftType.annot, color: SiftColors.boneDim },
 });

@@ -45,6 +45,12 @@ const styles = StyleSheet.create({
     // leave nothing to scroll.
     includeFontPadding: false,
     textAlignVertical: 'center',
+    // Android's EditText keeps its own minimum content height. Forcing a field
+    // shorter than that leaves content taller than its box, and the text then
+    // drags up and down inside a single-line field. This floor keeps every box
+    // at least as tall as its content, and matches the 44px minimum touch
+    // target besides. Yoga lets minHeight win over a smaller height.
+    minHeight: 44,
   },
   focused: { borderColor: SiftColors.acid },
 });
