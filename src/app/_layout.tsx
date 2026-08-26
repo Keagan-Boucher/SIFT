@@ -15,12 +15,14 @@ import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { useWindowDimensions } from 'react-native';
 
 import { AuthProvider } from '@/hooks/use-auth';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const { width, height } = useWindowDimensions();
   const [fontsLoaded] = useFonts({
     BigShouldersDisplay_700Bold,
     BigShouldersDisplay_800ExtraBold,
@@ -42,7 +44,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <NavigationBar hidden />
+      <NavigationBar hidden={width > height} />
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
     </AuthProvider>
   );
