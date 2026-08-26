@@ -1,4 +1,4 @@
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/sift/Button';
 import { CommandHeading } from '@/components/sift/CommandHeading';
@@ -15,17 +15,7 @@ interface ConfirmViewProps {
 }
 
 export function ConfirmView({ flow, orientation }: ConfirmViewProps) {
-  const { state, candidateSelectedLabel, candidates, confirmSuffix, confirmInsight, confirmDomain, actions } = flow;
-
-  const askDiscard = () =>
-    Alert.alert(
-      'DISCARD RESULT',
-      `Nothing from ${confirmDomain} will be shown for this search. The other sources are left alone.`,
-      [
-        { text: 'KEEP', style: 'cancel' },
-        { text: 'DISCARD', style: 'destructive', onPress: actions.discardConfirmSource },
-      ],
-    );
+  const { state, candidateSelectedLabel, candidates, confirmSuffix, confirmInsight, actions } = flow;
 
   const list = (
     <View style={styles.list}>
@@ -38,7 +28,7 @@ export function ConfirmView({ flow, orientation }: ConfirmViewProps) {
         </Pressable>
       ))}
       {orientation === 'portrait' && <Text style={styles.selectedLabel}>SELECTED: {candidateSelectedLabel}</Text>}
-      <Button variant="ghost" onPress={askDiscard} style={styles.discard}>
+      <Button variant="ghost" onPress={actions.openDiscard} style={styles.discard}>
         DISCARD RESULT
       </Button>
     </View>

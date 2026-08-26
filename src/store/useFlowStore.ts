@@ -25,6 +25,8 @@ interface FlowStore {
   showLinks: boolean;
   /** Domain of the FAILED source whose "paste a search URL" popup is open, if any. */
   retryDomain: string | null;
+  /** True while the confirm step's discard prompt is open. */
+  showDiscard: boolean;
   /** Index of the candidate selected in the confirm step. */
   chosen: number;
   /** Index of the tile whose detail popup is open. */
@@ -39,6 +41,8 @@ interface FlowStore {
   toggleLinks: () => void;
   openRetry: (domain: string) => void;
   closeRetry: () => void;
+  openDiscard: () => void;
+  closeDiscard: () => void;
   choose: (index: number) => void;
   select: (index: number | null) => void;
   archive: (note: NoteView, stamp: string) => void;
@@ -53,6 +57,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
   showAccount: false,
   showLinks: false,
   retryDomain: null,
+  showDiscard: false,
   chosen: 0,
   selected: null,
   dismissed: [],
@@ -66,6 +71,8 @@ export const useFlowStore = create<FlowStore>((set) => ({
   toggleLinks: () => set((s) => ({ showLinks: !s.showLinks, showArchive: false, showAccount: false, retryDomain: null })),
   openRetry: (domain) => set({ retryDomain: domain, showArchive: false, showAccount: false, showLinks: false }),
   closeRetry: () => set({ retryDomain: null }),
+  openDiscard: () => set({ showDiscard: true, showArchive: false, showAccount: false, showLinks: false, retryDomain: null }),
+  closeDiscard: () => set({ showDiscard: false }),
   choose: (chosen) => set({ chosen }),
   select: (selected) => set({ selected }),
   archive: (note, stamp) =>

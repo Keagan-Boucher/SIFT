@@ -37,7 +37,7 @@ export function useSiftFlow() {
   // Live only once there is a project and a signed-in uid to own the documents.
   const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
 
-  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry } = state;
+  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry, openDiscard, closeDiscard } = state;
   const chooseRecent = setQuery;
   const selectTile = useCallback((index: number) => state.select(index), [state]);
   const closeListing = useCallback(() => state.select(null), [state]);
@@ -115,9 +115,10 @@ export function useSiftFlow() {
   /** Nothing this source returned matched: delist it and go back to the run. */
   const discardConfirmSource = useCallback(() => {
     session.discardConfirmSource();
+    closeDiscard();
     state.select(null);
     setScreen('live');
-  }, [session, state, setScreen]);
+  }, [session, state, setScreen, closeDiscard]);
 
   const saveCurrentSearch = useCallback(() => {
     session.saveCurrentSearch(state.query);
@@ -405,6 +406,8 @@ export function useSiftFlow() {
       toggleLinks,
       openRetry,
       closeRetry,
+      openDiscard,
+      closeDiscard,
       submitRetryUrl,
       saveCurrentSearch,
       checkItem,

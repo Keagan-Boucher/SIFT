@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionBar } from '@/components/sift/ActionBar';
 import { AccountPopup } from '@/components/sift/AccountPopup';
 import { AlertLogPopup } from '@/components/sift/AlertLogPopup';
+import { DiscardPopup } from '@/components/sift/DiscardPopup';
 import { ListingDetailPopup } from '@/components/sift/ListingDetailPopup';
 import { NoteBanner } from '@/components/sift/NoteBanner';
 import { Rail } from '@/components/sift/Rail';
@@ -36,7 +37,7 @@ export default function SiftAppScreen() {
   const orientation = useOrientation();
   const { phase } = useAuth();
   const flow = useSiftFlow();
-  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, hasLinks, linksCount, stagedLinks, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, showLinks, mode, isGuest, accountEmail, actions } = flow;
+  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, hasLinks, linksCount, stagedLinks, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, showLinks, confirmDomain, mode, isGuest, accountEmail, actions } = flow;
 
   const ActiveView = VIEW_BY_SCREEN[state.screen];
 
@@ -86,6 +87,11 @@ export default function SiftAppScreen() {
             title="LINKS"
             emptyText="No links staged. Paste a search URL from a FAILED source's alert to add one."
           />
+        </View>
+      )}
+      {state.showDiscard && (
+        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
+          <DiscardPopup domain={confirmDomain} onDiscard={actions.discardConfirmSource} onClose={actions.closeDiscard} />
         </View>
       )}
       {state.retryDomain && (
