@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { CommandHeading } from './CommandHeading';
@@ -74,7 +74,7 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
         </Pressable>
       </View>
 
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         {mode === 'demo' ? (
           <Text style={styles.blurb}>
             No Firebase project is configured, so SIFT is running on its seeded dataset. Accounts, live scraping
@@ -138,7 +138,7 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
           hitSlop={6}>
           <Text style={styles.replay}>REPLAY TOUR</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -146,6 +146,8 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
 const styles = StyleSheet.create({
   wrap: {
     width: 344,
+    maxHeight: 320,
+    flexShrink: 1,
     backgroundColor: SiftColors.void,
     borderWidth: 1,
     borderColor: SiftColors.graphite,
@@ -160,7 +162,8 @@ const styles = StyleSheet.create({
   },
   close: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   closeLabel: { fontFamily: SiftFontFamily.system, fontSize: 14, color: SiftColors.boneDim },
-  body: { padding: SiftSpacing.space3, gap: SiftSpacing.space2 },
+  body: { flexShrink: 1 },
+  bodyContent: { padding: SiftSpacing.space3, gap: SiftSpacing.space2 },
   tabs: { flexDirection: 'row', gap: SiftSpacing.space3 },
   tab: { paddingVertical: 2 },
   tabLabel: { ...SiftType.label, color: SiftColors.boneDim, textTransform: 'uppercase' },

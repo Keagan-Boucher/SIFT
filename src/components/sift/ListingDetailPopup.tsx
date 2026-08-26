@@ -78,6 +78,7 @@ function Row({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   wrap: {
     width: 320,
+    flexShrink: 1,
     backgroundColor: SiftColors.void,
     borderWidth: 1,
     borderColor: SiftColors.graphite,

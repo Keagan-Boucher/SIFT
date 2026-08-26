@@ -56,6 +56,7 @@ const styles = StyleSheet.create({
   wrap: {
     width: 344,
     maxHeight: 246,
+    flexShrink: 1,
     backgroundColor: SiftColors.void,
     borderWidth: 1,
     borderColor: SiftColors.graphite,
