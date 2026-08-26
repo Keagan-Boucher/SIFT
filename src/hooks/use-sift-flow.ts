@@ -182,11 +182,11 @@ export function useSiftFlow() {
     const railName: Record<Screen, string> = {
       sources: 'ADD SOURCES',
       live: 'LIVE RESULTS',
-      confirm: 'CONFIRM MATCHES',
+      confirm: 'CONFIRM',
       results: 'LIVE RESULTS',
       dashboard: 'DASHBOARD',
-      saved: 'SAVED SEARCHES',
-      presets: 'SOURCE PRESETS',
+      saved: 'SAVED',
+      presets: 'PRESETS',
     };
 
     const statusLine: Record<Screen, string> = {

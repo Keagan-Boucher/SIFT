@@ -143,11 +143,10 @@ export default function SiftAppScreen() {
 
   if (orientation === 'landscape') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.landscapeBody}>
           <Rail
             screenName={railName}
-            connection={railConnection}
             sourceCount={sources.length}
             onPressSession={actions.toggleAccount}
           />

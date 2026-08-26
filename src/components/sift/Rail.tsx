@@ -1,19 +1,29 @@
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { SiftMark } from './SiftMark';
 
 interface RailProps {
   screenName: string;
-  connection?: 'IDLE' | 'LIVE';
   sourceCount?: number;
-  /** Opens the account panel. The session code is the identity affordance. */
+  /** Opens the account panel, from the button at the foot of the rail. */
   onPressSession?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
-export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, onPressSession, style }: RailProps) {
+/** Head and shoulders, the one shape everyone already reads as "your account". */
+function AccountGlyph() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+      <Circle cx={8} cy={5} r={2.75} stroke={SiftColors.bone} strokeWidth={1.4} />
+      <Path d="M2.5 14c0-2.9 2.46-5 5.5-5s5.5 2.1 5.5 5" stroke={SiftColors.bone} strokeWidth={1.4} strokeLinecap="square" />
+    </Svg>
+  );
+}
+
+export function Rail({ screenName, sourceCount = 0, onPressSession, style }: RailProps) {
   return (
     <View style={[styles.rail, style]}>
       <SiftMark width={22} />
@@ -24,20 +34,6 @@ export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, onPress
         </Text>
       </View>
 
-      <View
-        style={[
-          styles.connection,
-          { backgroundColor: connection === 'LIVE' ? SiftColors.mint : 'transparent' },
-        ]}>
-        <Text
-          style={[
-            styles.connectionText,
-            { color: connection === 'LIVE' ? SiftColors.void : SiftColors.boneDim },
-          ]}>
-          {connection}
-        </Text>
-      </View>
-
       <View style={styles.sources}>
         {Array.from({ length: sourceCount }).map((_, i) => (
           <View key={i} style={styles.sourceTick} />
@@ -45,12 +41,16 @@ export function Rail({ screenName, connection = 'IDLE', sourceCount = 0, onPress
       </View>
 
       {onPressSession ? (
-        <Pressable style={styles.sessionWrap} onPress={onPressSession} accessibilityLabel="Account">
-          <Text style={styles.session}>ACCT</Text>
+        <Pressable
+          style={styles.accountButton}
+          onPress={onPressSession}
+          accessibilityRole="button"
+          accessibilityLabel="Manage your account">
+          <AccountGlyph />
         </Pressable>
       ) : (
         // The auth screens borrow the rail before there is an account to open.
-        <View style={styles.sessionWrap} />
+        <View style={styles.accountButton} />
       )}
     </View>
   );
@@ -67,27 +67,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: SiftSpacing.space4,
   },
-  screenNameWrap: { width: 20, alignItems: 'center', justifyContent: 'center' },
+  // The title is rotated, so its box is 20px wide and its length runs down the
+  // rail. Keeping it centred and away from the mark is vertical margin, not padding.
+  screenNameWrap: { width: 20, alignItems: 'center', justifyContent: 'center', marginVertical: SiftSpacing.space4 },
   screenName: {
     ...SiftType.displayM,
     color: SiftColors.bone,
     textTransform: 'uppercase',
     transform: [{ rotate: '-90deg' }],
-    width: 160,
+    width: 150,
     textAlign: 'center',
-  },
-  connection: { paddingVertical: 6, paddingHorizontal: 4 },
-  connectionText: {
-    ...SiftType.label,
-    textTransform: 'uppercase',
-    transform: [{ rotate: '-90deg' }],
   },
   sources: { gap: 4, alignItems: 'center' },
   sourceTick: { width: 20, height: 1, backgroundColor: SiftColors.graphite },
-  sessionWrap: { width: 12, alignItems: 'center' },
-  session: {
-    ...SiftType.annot,
-    color: SiftColors.boneDim,
-    transform: [{ rotate: '-90deg' }],
+  accountButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: SiftColors.graphite,
+    backgroundColor: SiftColors.slate,
   },
 });
