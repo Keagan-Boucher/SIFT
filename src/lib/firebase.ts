@@ -58,6 +58,10 @@ export const functions = getFunctions(app, 'africa-south1');
 
 if (useEmulator) {
   const host = emulatorHost();
+  // A device can only reach the emulator over the LAN. Tunnelled or web-only
+  // hosts resolve to something it cannot open a socket to, and the failure
+  // mode is a silent hang rather than an error, so say where we are pointing.
+  console.log(`[sift] using Firebase emulators at ${host} (auth 9099, firestore 8080, functions 5001)`);
   connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
   connectFirestoreEmulator(db, host, 8080);
   connectFunctionsEmulator(functions, host, 5001);

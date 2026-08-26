@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +7,7 @@ import { Button } from '@/components/sift/Button';
 import { Rail } from '@/components/sift/Rail';
 import { SiftMark } from '@/components/sift/SiftMark';
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
-import { continueAsGuest, sendPasswordReset, signInWithEmail, signUpWithEmail } from '@/hooks/use-auth';
+import { continueAsGuest, sendPasswordReset, signInWithEmail, signUpWithEmail, useAuth } from '@/hooks/use-auth';
 import { useOrientation } from '@/hooks/use-orientation';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
@@ -64,6 +64,7 @@ function Field({ label, value, onChangeText, placeholder, height, secure, email 
 
 export default function AuthScreen() {
   const orientation = useOrientation();
+  const { phase } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -71,6 +72,10 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  // A session that restores after the splash gave up waiting still belongs in
+  // the app, not at the gate.
+  const signedIn = phase === 'ready';
 
   const copy = COPY[mode];
   const landscape = orientation === 'landscape';
@@ -156,6 +161,10 @@ export default function AuthScreen() {
       </Text>
     </Text>
   );
+
+  if (signedIn) {
+    return <Redirect href="/app" />;
+  }
 
   if (landscape) {
     return (

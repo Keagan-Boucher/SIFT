@@ -19,6 +19,15 @@ import { useOrientationPolicy } from '@/hooks/use-orientation-policy';
 const MIN_SPLASH_MS = 1400;
 
 /**
+ * How long to wait for Firebase to say whether a session exists before giving
+ * up and showing the gate anyway. Restoring a persisted session is a local
+ * read and is normally instant, but a backend the device cannot reach — an
+ * emulator on an unreachable host, no network — never answers at all, and a
+ * splash that waits for it is a hang.
+ */
+const AUTH_TIMEOUT_MS = 5000;
+
+/**
  * The launch route: SIFT's boot screen, and the gate in front of everything
  * else. It holds until Firebase has said whether there is a session, then
  * hands off to the app or to the auth screen. Tapping skips the wait.
@@ -28,26 +37,34 @@ export default function SplashScreen() {
   const orientation = useOrientation();
   const { phase } = useAuth();
   const [elapsed, setElapsed] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const progress = useSharedValue(0);
 
   useEffect(() => {
     progress.value = withTiming(1, { duration: MIN_SPLASH_MS, easing: Easing.out(Easing.quad) });
-    const timer = setTimeout(() => setElapsed(true), MIN_SPLASH_MS);
-    return () => clearTimeout(timer);
+    const minimum = setTimeout(() => setElapsed(true), MIN_SPLASH_MS);
+    const cap = setTimeout(() => setTimedOut(true), AUTH_TIMEOUT_MS);
+    return () => {
+      clearTimeout(minimum);
+      clearTimeout(cap);
+    };
   }, [progress]);
 
   const barStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
   // 'loading' is Firebase still restoring a persisted session; anything else is an answer.
   const resolved = phase !== 'loading';
+  const done = resolved || timedOut;
 
-  if (elapsed && resolved) {
+  if (elapsed && done) {
     return <Redirect href={phase === 'ready' ? '/app' : '/auth'} />;
   }
 
   const status = (
     <>
-      <Text style={styles.status}>{'//INITIALIZING_SESSION'}</Text>
+      <Text style={[styles.status, timedOut && !resolved && styles.statusStalled]}>
+        {timedOut && !resolved ? '!BACKEND_UNREACHABLE' : '//INITIALIZING_SESSION'}
+      </Text>
       <View style={styles.barTrack}>
         <Animated.View style={[styles.barFill, barStyle]} />
       </View>
@@ -55,7 +72,7 @@ export default function SplashScreen() {
   );
 
   const skip = () => {
-    if (resolved) router.replace(phase === 'ready' ? '/app' : '/auth');
+    if (done) router.replace(phase === 'ready' ? '/app' : '/auth');
   };
 
   if (orientation === 'landscape') {
@@ -125,6 +142,7 @@ const styles = StyleSheet.create({
   wordmarkLandscape: { fontSize: 40, lineHeight: 40, letterSpacing: -0.8 },
 
   status: { ...SiftType.label, color: SiftColors.mint, textTransform: 'uppercase' },
+  statusStalled: { color: SiftColors.ember },
   barTrack: { width: 160, height: 3, backgroundColor: SiftColors.slate, overflow: 'hidden' },
   barFill: { height: 3, backgroundColor: SiftColors.mint },
 });
