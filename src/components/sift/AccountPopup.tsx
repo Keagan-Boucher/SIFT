@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -6,6 +7,7 @@ import { CommandHeading } from './CommandHeading';
 import { Button } from './Button';
 import { Input } from './Input';
 import { signInWithEmail, signOutUser, upgradeGuestToEmail } from '@/hooks/use-auth';
+import { clearTourSeen } from '@/lib/onboarding';
 
 interface AccountPopupProps {
   /** 'demo' when no Firebase project is configured. */
@@ -128,6 +130,14 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
 
         {error && <Text style={styles.error}>{error}</Text>}
         {done && <Text style={styles.done}>{done}</Text>}
+
+        <View style={styles.rule} />
+        <Pressable
+          onPress={() => void clearTourSeen().then(() => router.replace('/onboarding'))}
+          accessibilityLabel="Replay the tour"
+          hitSlop={6}>
+          <Text style={styles.replay}>REPLAY TOUR</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -162,6 +172,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SiftSpacing.space2,
     ...SiftType.body,
   },
+  rule: { height: 1, backgroundColor: SiftColors.graphite, marginTop: SiftSpacing.space1 },
+  replay: { ...SiftType.label, color: SiftColors.boneDim, textTransform: 'uppercase' },
   error: { ...SiftType.annot, color: SiftColors.ember },
   done: { ...SiftType.annot, color: SiftColors.mint },
 });

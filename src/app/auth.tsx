@@ -1,5 +1,5 @@
 import { Redirect, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,6 +13,7 @@ import { useOrientation } from '@/hooks/use-orientation';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
 type Mode = 'login' | 'signup';
+type Destination = '/app' | '/onboarding';
 
 const COPY: Record<Mode, { heading: string; blurb: string; action: string; railName: string }> = {
   login: {
@@ -70,11 +71,11 @@ export default function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   /**
-   * Where this screen hands off to. A ref, not state, because signing up flips
-   * hasAccount from the auth listener mid-submit and the redirect below can win
-   * the race against enter(); both read this, so both agree.
+   * Where this screen hands off to. Signing up flips hasAccount from the auth
+   * listener mid-submit, so the redirect below can win the race against
+   * enter(); it is held in state so both exits agree on the destination.
    */
-  const destination = useRef<'/app' | '/onboarding'>('/app');
+  const [destination, setDestination] = useState<Destination>('/app');
 
   // An account that restores after the splash gave up waiting still belongs in
   // the app, not at the gate. A guest does not: they came here to choose.
@@ -87,16 +88,16 @@ export default function AuthScreen() {
   // Firebase's own minimum. Checked here so the button says no before the network does.
   const canSubmit = !busy && email.trim().length > 3 && password.length >= 6;
 
-  function enter(): void {
-    router.replace(destination.current);
+  function enter(next: Destination = destination): void {
+    router.replace(next);
   }
 
-  async function run(action: () => Promise<void>): Promise<void> {
+  async function run(action: () => Promise<void>, next: Destination): Promise<void> {
     setBusy(true);
     setError(null);
     try {
       await action();
-      enter();
+      enter(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -106,15 +107,19 @@ export default function AuthScreen() {
 
   function submit(): void {
     // Logging in means a return visit, so only a fresh account gets the tour.
-    destination.current = mode === 'signup' ? '/onboarding' : '/app';
-    if (!isFirebaseConfigured) return enter();
-    run(() => (mode === 'login' ? signInWithEmail(email.trim(), password) : signUpWithEmail(name, email.trim(), password)));
+    const next: Destination = mode === 'signup' ? '/onboarding' : '/app';
+    setDestination(next);
+    if (!isFirebaseConfigured) return enter(next);
+    run(
+      () => (mode === 'login' ? signInWithEmail(email.trim(), password) : signUpWithEmail(name, email.trim(), password)),
+      next,
+    );
   }
 
   function guest(): void {
-    destination.current = '/onboarding';
-    if (!isFirebaseConfigured) return enter();
-    run(continueAsGuest);
+    setDestination('/onboarding');
+    if (!isFirebaseConfigured) return enter('/onboarding');
+    run(continueAsGuest, '/onboarding');
   }
 
   function reset(): void {
@@ -169,7 +174,7 @@ export default function AuthScreen() {
   );
 
   if (signedIn) {
-    return <Redirect href={destination.current} />;
+    return <Redirect href={destination} />;
   }
 
   if (landscape) {
