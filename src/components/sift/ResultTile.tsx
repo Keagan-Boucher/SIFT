@@ -2,7 +2,6 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftType } from '@/constants/sift-theme';
-import { CornerBrackets } from './CornerBrackets';
 import { CountChip } from './CountChip';
 import { DotMatrix } from './DotMatrix';
 import { HeaderStrip } from './HeaderStrip';
@@ -29,7 +28,7 @@ export function ResultTile({
   lowest = false,
   style,
 }: ResultTileProps) {
-  const body = (
+  return (
     <View style={[styles.tile, style]} accessibilityLabel={retailer}>
       <HeaderStrip tier={tier} confidence={confidence} />
       <View style={styles.image}>
@@ -51,7 +50,6 @@ export function ResultTile({
       </View>
     </View>
   );
-  return lowest ? <CornerBrackets active>{body}</CornerBrackets> : body;
 }
 
 const styles = StyleSheet.create({
