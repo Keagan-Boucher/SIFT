@@ -165,7 +165,7 @@ export default function AuthScreen() {
 
   if (landscape) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.landscapeBody}>
             <Rail screenName={copy.railName} sourceCount={0} />

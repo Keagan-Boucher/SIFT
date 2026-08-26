@@ -23,6 +23,19 @@ function AccountGlyph() {
   );
 }
 
+/** The account affordance, shared by the landscape rail and the portrait header. */
+export function AccountButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      style={styles.accountButton}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Manage your account">
+      <AccountGlyph />
+    </Pressable>
+  );
+}
+
 export function Rail({ screenName, sourceCount = 0, onPressSession, style }: RailProps) {
   return (
     <View style={[styles.rail, style]}>
@@ -41,16 +54,11 @@ export function Rail({ screenName, sourceCount = 0, onPressSession, style }: Rai
       </View>
 
       {onPressSession ? (
-        <Pressable
-          style={styles.accountButton}
-          onPress={onPressSession}
-          accessibilityRole="button"
-          accessibilityLabel="Manage your account">
-          <AccountGlyph />
-        </Pressable>
+        <AccountButton onPress={onPressSession} />
       ) : (
-        // The auth screens borrow the rail before there is an account to open.
-        <View style={styles.accountButton} />
+        // The auth screens borrow the rail before there is an account to open,
+        // so the slot holds its space without drawing a button that does nothing.
+        <View style={styles.accountSlot} />
       )}
     </View>
   );
@@ -80,6 +88,7 @@ const styles = StyleSheet.create({
   },
   sources: { gap: 4, alignItems: 'center' },
   sourceTick: { width: 20, height: 1, backgroundColor: SiftColors.graphite },
+  accountSlot: { width: 32, height: 32 },
   accountButton: {
     width: 32,
     height: 32,

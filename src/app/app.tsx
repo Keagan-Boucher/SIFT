@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionBar } from '@/components/sift/ActionBar';
@@ -8,7 +8,7 @@ import { AlertLogPopup } from '@/components/sift/AlertLogPopup';
 import { DiscardPopup } from '@/components/sift/DiscardPopup';
 import { ListingDetailPopup } from '@/components/sift/ListingDetailPopup';
 import { NoteBanner } from '@/components/sift/NoteBanner';
-import { Rail } from '@/components/sift/Rail';
+import { AccountButton, Rail } from '@/components/sift/Rail';
 import { RetryUrlPopup } from '@/components/sift/RetryUrlPopup';
 import { SavedPill, SavedStrip } from '@/components/sift/SavedStrip';
 import { ConfirmView } from '@/components/sift/views/ConfirmView';
@@ -143,7 +143,7 @@ export default function SiftAppScreen() {
 
   if (orientation === 'landscape') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.landscapeBody}>
           <Rail
             screenName={railName}
@@ -183,9 +183,7 @@ export default function SiftAppScreen() {
               onPress={actions.openSaved}
               onPressPresets={actions.openPresets}
             />
-            <Pressable onPress={actions.toggleAccount} accessibilityLabel="Account">
-              <Text style={styles.sessionCode}>ACCT</Text>
-            </Pressable>
+            <AccountButton onPress={actions.toggleAccount} />
           </View>
         </View>
         <View style={styles.contentCol}>
@@ -230,7 +228,6 @@ const styles = StyleSheet.create({
   connectionPillLive: { backgroundColor: SiftColors.mint },
   connectionPillText: { fontFamily: 'JetBrainsMono_700Bold', fontSize: 11, letterSpacing: 0.88, color: SiftColors.boneDim },
   connectionPillTextLive: { color: SiftColors.void },
-  sessionCode: { fontFamily: 'JetBrainsMono_400Regular', fontSize: 9, letterSpacing: 0.9, color: SiftColors.boneDim },
   popupAnchor: { position: 'absolute', zIndex: 5 },
   popupAnchorAbove: { zIndex: 6 },
   popupAnchorLandscape: { right: 12, bottom: 12 },
