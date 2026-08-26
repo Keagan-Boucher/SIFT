@@ -52,7 +52,9 @@ export function toTileView(listing: ListingDoc, lowestPrice: number): TileView {
     count: listing.needsConfirmation ? listing.candidates.length + 1 : undefined,
     issue: listing.needsConfirmation,
     title: listing.title,
-    url: listing.url.replace(/^https?:\/\//, ''),
+    // Kept whole: the detail popup opens this in a browser and strips the
+    // scheme itself for display. A schemeless string is not an openable URL.
+    url: listing.url,
     method: TIER_LABEL[listing.extractionTier],
     stock: listing.inStock ? 'IN STOCK' : 'OUT OF STOCK',
   };
