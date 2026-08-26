@@ -1,5 +1,5 @@
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -69,6 +69,12 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  /**
+   * Where this screen hands off to. A ref, not state, because signing up flips
+   * hasAccount from the auth listener mid-submit and the redirect below can win
+   * the race against enter(); both read this, so both agree.
+   */
+  const destination = useRef<'/app' | '/onboarding'>('/app');
 
   // An account that restores after the splash gave up waiting still belongs in
   // the app, not at the gate. A guest does not: they came here to choose.
@@ -82,7 +88,7 @@ export default function AuthScreen() {
   const canSubmit = !busy && email.trim().length > 3 && password.length >= 6;
 
   function enter(): void {
-    router.replace('/app');
+    router.replace(destination.current);
   }
 
   async function run(action: () => Promise<void>): Promise<void> {
@@ -99,11 +105,14 @@ export default function AuthScreen() {
   }
 
   function submit(): void {
+    // Logging in means a return visit, so only a fresh account gets the tour.
+    destination.current = mode === 'signup' ? '/onboarding' : '/app';
     if (!isFirebaseConfigured) return enter();
     run(() => (mode === 'login' ? signInWithEmail(email.trim(), password) : signUpWithEmail(name, email.trim(), password)));
   }
 
   function guest(): void {
+    destination.current = '/onboarding';
     if (!isFirebaseConfigured) return enter();
     run(continueAsGuest);
   }
@@ -160,7 +169,7 @@ export default function AuthScreen() {
   );
 
   if (signedIn) {
-    return <Redirect href="/app" />;
+    return <Redirect href={destination.current} />;
   }
 
   if (landscape) {
