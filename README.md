@@ -28,6 +28,7 @@
 ## Table of contents
 
 - [Project overview](#project-overview)
+- [Walkthrough](#walkthrough)
 - [Features](#features)
 - [How it works](#how-it-works)
 - [Technologies used](#technologies-used)
@@ -68,6 +69,20 @@ The project is built against three fixed inspiration cards, and every major deci
 | Goal theme         | **Learn Something**   | Spread analysis, price history, tier and confidence badges. The user learns how to read a price, not just what it is. |
 | Device interaction | **Real-Time Data**    | Firestore listeners stream scrape results and price drops as they happen.                                             |
 | Constraint         | **Landscape Support** | A landscape rail plus content layout, with a portrait header for smaller devices. Rotation is allowed, not locked.    |
+
+---
+
+## Walkthrough
+
+A recorded run through the app: adding sources, watching results stream in, confirming a match and reading the dashboard.
+
+<div align="center">
+
+https://github.com/Keagan-Boucher/SIFT/raw/main/WalkthroughVideo.mp4
+
+</div>
+
+If the player does not load, [download the walkthrough](WalkthroughVideo.mp4) (~100 MB).
 
 ---
 
