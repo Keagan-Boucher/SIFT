@@ -11,6 +11,7 @@ import {
   JetBrainsMono_700Bold,
 } from '@expo-google-fonts/jetbrains-mono';
 import { useFonts } from 'expo-font';
+import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -41,6 +42,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+      <NavigationBar hidden />
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
     </AuthProvider>
   );
