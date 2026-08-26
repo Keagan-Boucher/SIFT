@@ -10,7 +10,7 @@ import { SiftMark } from '@/components/sift/SiftMark';
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { continueAsGuest, sendPasswordReset, signInWithEmail, signUpWithEmail, useAuth } from '@/hooks/use-auth';
 import { useOrientation } from '@/hooks/use-orientation';
-import { isFirebaseConfigured } from '@/lib/firebase';
+import { hasBackend } from '@/lib/firebase';
 
 type Mode = 'login' | 'signup';
 
@@ -99,17 +99,17 @@ export default function AuthScreen() {
   }
 
   function submit(): void {
-    if (!isFirebaseConfigured) return enter();
+    if (!hasBackend) return enter();
     run(() => (mode === 'login' ? signInWithEmail(email.trim(), password) : signUpWithEmail(name, email.trim(), password)));
   }
 
   function guest(): void {
-    if (!isFirebaseConfigured) return enter();
+    if (!hasBackend) return enter();
     run(continueAsGuest);
   }
 
   function reset(): void {
-    if (!isFirebaseConfigured || !email.trim()) {
+    if (!hasBackend || !email.trim()) {
       return setError('Enter your email address first, then tap FORGOT PASSWORD.');
     }
     setError(null);
@@ -133,8 +133,8 @@ export default function AuthScreen() {
     </>
   );
 
-  const notice = !isFirebaseConfigured ? (
-    <Text style={styles.notice}>!NO_PROJECT_CONFIGURED — SIFT WILL RUN ON ITS DEMO DATASET</Text>
+  const notice = !hasBackend ? (
+    <Text style={styles.notice}>!NO_BACKEND_CONFIGURED — ADD A PROJECT OR THE EMULATORS TO .ENV</Text>
   ) : sent ? (
     <Text style={styles.notice}>{'//RESET_LINK_SENT — CHECK YOUR INBOX'}</Text>
   ) : error ? (

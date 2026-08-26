@@ -8,8 +8,8 @@ import { Input } from './Input';
 import { signInWithEmail, signOutUser, upgradeGuestToEmail } from '@/hooks/use-auth';
 
 interface AccountPopupProps {
-  /** 'demo' when no Firebase project is configured. */
-  mode: 'live' | 'demo';
+  /** 'noBackend' when neither a Firebase project nor the emulator suite is configured. */
+  mode: 'live' | 'noBackend';
   isGuest: boolean;
   email: string | null;
   onClose: () => void;
@@ -73,7 +73,7 @@ export function AccountPopup({ mode, isGuest, email, onClose }: AccountPopupProp
       </View>
 
       <View style={styles.body}>
-        {mode === 'demo' ? (
+        {mode === 'noBackend' ? (
           <Text style={styles.blurb}>
             No Firebase project is configured, so there is nothing behind these screens. Accounts, live scraping
             and watches all need a project, or the local emulator suite, in .env.

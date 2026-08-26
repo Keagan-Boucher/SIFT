@@ -13,9 +13,9 @@ import {
 } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
-import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
+import { auth, db, hasBackend } from '@/lib/firebase';
 
-export type AuthPhase = 'demo' | 'loading' | 'signedOut' | 'ready' | 'error';
+export type AuthPhase = 'noBackend' | 'loading' | 'signedOut' | 'ready' | 'error';
 
 export interface AuthState {
   user: User | null;
@@ -57,10 +57,10 @@ const AuthContext = createContext<AuthState | null>(null);
  */
 function useAuthWatcher(): AuthState {
   const [user, setUser] = useState<User | null>(null);
-  const [phase, setPhase] = useState<AuthPhase>(isFirebaseConfigured ? 'loading' : 'demo');
+  const [phase, setPhase] = useState<AuthPhase>(hasBackend ? 'loading' : 'noBackend');
 
   useEffect(() => {
-    if (!isFirebaseConfigured) return;
+    if (!hasBackend) return;
 
     return onAuthStateChanged(auth, (next) => {
       setUser(next);

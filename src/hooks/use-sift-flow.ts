@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 
 import { SiftColors } from '@/constants/sift-theme';
 import { fmtPrice } from '@/lib/format-price';
-import { isFirebaseConfigured } from '@/lib/firebase';
+import { hasBackend } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { useLiveSession } from '@/hooks/session/use-live-session';
 import { PRESET_CATEGORIES } from '@/lib/presets';
@@ -33,9 +33,9 @@ export function useSiftFlow() {
 
   const auth = useAuth();
   const session = useLiveSession(auth.user?.uid ?? null);
-  // Without a project there is nothing behind the screens: they render empty
-  // and the account panel says why.
-  const noProject = !isFirebaseConfigured;
+  // With neither a project nor the emulator suite there is nothing behind the
+  // screens: they render empty and the account panel says why.
+  const noBackend = !hasBackend;
 
   const { setScreen, setQuery, setInput, openCategory, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry, openDiscard, closeDiscard } = state;
   /** Reuses a past search: its query, plus its sources merged into whatever is already staged. */
@@ -195,7 +195,7 @@ export function useSiftFlow() {
           ? `${blockedSources} BLOCKED · REMOVE TO CONTINUE`
           : failedSources > 0
             ? `${sources.length} SOURCES · ${failedSources} UNREADABLE`
-            : `${sources.length} SOURCES · ${noProject ? 'NO PROJECT' : 'IDLE'}`,
+            : `${sources.length} SOURCES · ${noBackend ? 'NO BACKEND' : 'IDLE'}`,
       live: running
         ? `${resolved}/${sources.length} RESOLVED · LIVE`
         : openIssues > 0
@@ -342,7 +342,7 @@ export function useSiftFlow() {
     ];
 
     return {
-      mode: noProject ? ('demo' as const) : ('live' as const),
+      mode: noBackend ? ('noBackend' as const) : ('live' as const),
       error: session.error,
       authPhase: auth.phase,
       isGuest: auth.isGuest,
@@ -410,7 +410,7 @@ export function useSiftFlow() {
   }, [
     state,
     session,
-    noProject,
+    noBackend,
     auth.phase,
     auth.isGuest,
     auth.user?.email,

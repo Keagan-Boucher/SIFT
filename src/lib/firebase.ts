@@ -27,6 +27,14 @@ export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseCon
 const useEmulator = process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
 
 /**
+ * Whether there is anything behind the screens. The emulator suite is a real
+ * backend and accepts the placeholder project below, so pointing at it counts
+ * even with no cloud credentials in .env. Ask this, not isFirebaseConfigured,
+ * before deciding the app has nothing to talk to.
+ */
+export const hasBackend = isFirebaseConfigured || useEmulator;
+
+/**
  * A device on the same network cannot reach the emulator on localhost, so fall
  * back to the host Expo is being served from.
  */

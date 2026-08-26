@@ -291,7 +291,7 @@ EXPO_PUBLIC_USE_FIREBASE_EMULATOR=false
 ```
 
 > [!TIP]
-> SIFT needs a backend. With `EXPO_PUBLIC_FIREBASE_API_KEY` and `EXPO_PUBLIC_FIREBASE_PROJECT_ID` blank the app still launches and every screen is navigable, but there is nothing behind them: no accounts, no scraping, no watches, and the status line reads `NO PROJECT`. The account panel, opened from the account button, says so directly. Point the app at the Docker emulator suite below, or at a real project, to get anything back. The seeded demo dataset that used to fill this gap has been removed: a fake dataset that drifts from the real pipeline is worse than an honest empty screen.
+> SIFT needs a backend, which means either a real project or the local emulator suite. With `EXPO_PUBLIC_FIREBASE_API_KEY` and `EXPO_PUBLIC_FIREBASE_PROJECT_ID` blank **and** `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=false`, the app still launches and every screen is navigable, but there is nothing behind them: no accounts, no scraping, no watches, and the status line reads `NO BACKEND`. Setting `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` is enough on its own, since the emulators accept a placeholder project. The account panel, opened from the account button, says so directly. Point the app at the Docker emulator suite below, or at a real project, to get anything back. The seeded demo dataset that used to fill this gap has been removed: a fake dataset that drifts from the real pipeline is worse than an honest empty screen.
 
 ### 3. Database and backend (Docker)
 
