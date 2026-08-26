@@ -27,6 +27,6 @@ export const PRESET_CATEGORIES: PresetCategory[] = [
     id: 'lifestyle',
     name: 'LIFESTYLE',
     blurb: 'Apparel, home and everyday goods.',
-    domains: ['superbalist.com', 'takealot.com', 'makro.co.za'],
+    domains: ['takealot.com'],
   },
 ];
