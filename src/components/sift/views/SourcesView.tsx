@@ -53,7 +53,6 @@ export function SourcesView({ flow, orientation }: SourcesViewProps) {
           accessibilityLabel="Search query"
           style={styles.queryInput}
         />
-        <Text style={styles.queryHelper}>RESOLUTION A–C · EXTRACTION T3, T4</Text>
       </View>
     </View>
   );
@@ -120,7 +119,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     paddingHorizontal: 12,
   },
-  queryHelper: { ...SiftType.annot, color: SiftColors.boneDim, paddingHorizontal: 12, paddingVertical: 6 },
   recentCol: { gap: SiftSpacing.space2 },
   recentRow: {
     flexDirection: 'row',

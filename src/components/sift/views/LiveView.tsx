@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CommandHeading } from '@/components/sift/CommandHeading';
@@ -36,7 +37,7 @@ export function LiveView({ flow }: LiveViewProps) {
     <View style={styles.wrap}>
       <View style={styles.headingRow}>
         <CommandHeading sigil="//" text={heading} suffix={suffix} />
-        <Text style={styles.listenerNote}>FIRESTORE LISTENER · NO MANUAL REFRESH</Text>
+        <Text style={styles.listenerNote}>V {Constants.expoConfig?.version ?? '1.0.0'}</Text>
       </View>
 
       {running && (

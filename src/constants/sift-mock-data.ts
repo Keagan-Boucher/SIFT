@@ -24,7 +24,7 @@ export type MockSavedItem = SavedItemView;
 export type MockNote = NoteView;
 export type MockRecent = RecentView;
 
-export const DEFAULT_QUERY = 'Samsung Galaxy S24 Ultra 256GB';
+export const DEFAULT_QUERY = '';
 
 export const SOURCES: MockSource[] = [
   { domain: 'takealot.com', status: 'RESOLVED' },
