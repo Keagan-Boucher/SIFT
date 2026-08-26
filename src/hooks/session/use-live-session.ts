@@ -33,7 +33,7 @@ function recentLabel(search: SearchDoc): RecentView {
     search.status === 'complete'
       ? `${resolved} PRICES · ${search.sources.length} SOURCES`
       : search.status.toUpperCase();
-  return { id: search.id, name: search.query, meta };
+  return { id: search.id, name: search.query, meta, sources: search.sources.map((source) => source.domain) };
 }
 
 /**
@@ -234,6 +234,13 @@ export function useLiveSession(userId: string | null): SiftSession {
     [listings, discarded],
   );
 
+  // Newest run of each query only: re-running the same search should refresh
+  // its row, not add another. Docs arrive newest first, so the first wins.
+  const recents = useMemo(() => {
+    const seen = new Set<string>();
+    return recentDocs.filter((doc) => !seen.has(doc.query) && seen.add(doc.query));
+  }, [recentDocs]);
+
   const notes = useMemo<NoteView[]>(() => {
     const dropNotes = savedDocs.map(toDropNote).filter((note): note is NoteView => note !== null);
     return [...toSourceNotes(search), ...toConfirmNotes(shown), ...dropNotes];
@@ -248,7 +255,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       sources,
       tiles: toTileViews(shown),
       saved: savedDocs.map(toSavedItemView),
-      recents: recentDocs.slice(0, 4).map(recentLabel),
+      recents: recents.slice(0, 4).map(recentLabel),
       candidates: toCandidateViews(listings.find((item) => item.retailerDomain === confirmDomain) ?? null),
       notes,
       stagedUrls: userSearchUrls,
@@ -274,7 +281,7 @@ export function useLiveSession(userId: string | null): SiftSession {
       shown,
       listings,
       savedDocs,
-      recentDocs,
+      recents,
       confirmDomain,
       notes,
       userSearchUrls,

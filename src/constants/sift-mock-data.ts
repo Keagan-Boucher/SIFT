@@ -115,9 +115,9 @@ export const INITIAL_NOTES: MockNote[] = [
 ];
 
 export const INITIAL_RECENTS: MockRecent[] = [
-  { id: 'r1', name: 'LG C4 42" OLED', meta: 'R14 299 LOW · 3D AGO' },
-  { id: 'r2', name: 'Logitech MX Master 3S', meta: 'R1 549 LOW · 6D AGO' },
-  { id: 'r3', name: 'Ryzen 5 7600X', meta: 'R4 199 LOW · 11D AGO' },
+  { id: 'r1', name: 'LG C4 42" OLED', meta: 'R14 299 LOW · 3D AGO', sources: ['takealot.com', 'incredible.co.za'] },
+  { id: 'r2', name: 'Logitech MX Master 3S', meta: 'R1 549 LOW · 6D AGO', sources: ['takealot.com', 'evetech.co.za'] },
+  { id: 'r3', name: 'Ryzen 5 7600X', meta: 'R4 199 LOW · 11D AGO', sources: ['evetech.co.za', 'loot.co.za'] },
 ];
 
 export const STREAM_SPEED_MS = 700;

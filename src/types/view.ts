@@ -68,4 +68,6 @@ export interface RecentView {
   id: string;
   name: string;
   meta: string;
+  /** Domains that run used, so tapping it can stage them again. */
+  sources: string[];
 }

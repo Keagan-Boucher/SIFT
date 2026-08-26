@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useDemoSession } from '@/hooks/session/use-demo-session';
 import { useLiveSession } from '@/hooks/session/use-live-session';
 import { useFlowStore, type Screen } from '@/store/useFlowStore';
+import type { RecentView } from '@/types/view';
 
 export type { Screen };
 
@@ -38,7 +39,14 @@ export function useSiftFlow() {
   const session = isFirebaseConfigured && auth.phase === 'ready' ? live : demo;
 
   const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry, openDiscard, closeDiscard } = state;
-  const chooseRecent = setQuery;
+  /** Reuses a past search: its query, plus its sources merged into whatever is already staged. */
+  const chooseRecent = useCallback(
+    (recent: RecentView) => {
+      setQuery(recent.name);
+      recent.sources.forEach(session.addSource);
+    },
+    [setQuery, session],
+  );
   const selectTile = useCallback((index: number) => state.select(index), [state]);
   const closeListing = useCallback(() => state.select(null), [state]);
   const chooseCandidate = useCallback((index: number) => state.choose(index), [state]);
