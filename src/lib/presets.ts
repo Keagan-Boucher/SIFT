@@ -21,7 +21,7 @@ export const PRESET_CATEGORIES: PresetCategory[] = [
     id: 'trading-cards',
     name: 'TRADING CARDS',
     blurb: 'Singles, sealed product and accessories.',
-    domains: ['dracoti.co.za', 'timewarp.co.za', 'battlewizards.co.za'],
+    domains: ['geekhome.co.za', 'dragontown.co.za', 'bigbangshop.co.za', 'nexushub.co.za'],
   },
   {
     id: 'lifestyle',
