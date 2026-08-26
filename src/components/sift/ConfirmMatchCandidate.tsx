@@ -17,30 +17,25 @@ export function ConfirmMatchCandidate({ title, price, confidence, style }: Confi
   const low = confidence < 0.6;
   return (
     <View style={[styles.card, style]}>
+      <DotMatrix density="lo" style={styles.matrix} />
       {/* Same header strip the search tiles carry, with the 0-1 score mapped
           onto the four badge squares those tiles use. */}
       <HeaderStrip tier={low ? 4 : 3} confidence={Math.round(confidence * 4)} />
-      <View style={styles.row}>
-        <View style={styles.thumb}>
-          <DotMatrix density="mid" />
-        </View>
-        <View style={styles.info}>
-          <Text style={styles.title} numberOfLines={2}>
-            {title}
-          </Text>
-          <Text style={styles.price}>{price}</Text>
-          <ProgressBar value={confidence} label={`${Math.round(confidence * 100)}%`} alert={low} onLight style={styles.bar} />
-        </View>
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text style={styles.price}>{price}</Text>
+        <ProgressBar value={confidence} label={`${Math.round(confidence * 100)}%`} alert={low} onLight style={styles.bar} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: SiftColors.slate },
-  row: { flexDirection: 'row', gap: SiftSpacing.space3, padding: SiftSpacing.space3 },
-  thumb: { position: 'relative', width: 56, height: 56, overflow: 'hidden', backgroundColor: SiftColors.carbon },
-  info: { flex: 1, justifyContent: 'center', gap: 6 },
+  card: { position: 'relative', overflow: 'hidden', backgroundColor: SiftColors.slate },
+  matrix: { opacity: 0.4 },
+  info: { gap: 6, padding: SiftSpacing.space3 },
   title: { ...SiftType.title, color: SiftColors.bone },
   price: { ...SiftType.priceM, color: SiftColors.bone },
   // Light track, dark fill: the bar's own fill colour is void, so it only
