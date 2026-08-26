@@ -11,12 +11,12 @@ import {
   JetBrainsMono_700Bold,
 } from '@expo-google-fonts/jetbrains-mono';
 import { useFonts } from 'expo-font';
-import { NavigationBar, setVisibilityAsync } from 'expo-navigation-bar';
+import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar, setStatusBarHidden } from 'expo-status-bar';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Keyboard, Platform, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 
 import { AuthProvider } from '@/hooks/use-auth';
 
@@ -33,33 +33,6 @@ export default function RootLayout() {
     Archivo_400Regular,
     Archivo_500Medium,
   });
-
-  // Android brings the system bars back whenever the keyboard opens or closes.
-  useEffect(() => {
-    if (Platform.OS !== 'android' || !landscape) {
-      return;
-    }
-    let timers: ReturnType<typeof setTimeout>[] = [];
-    const hide = () => {
-      // setVisibilityAsync skips the dedupe in NavigationBar.setHidden, which
-      // swallows the call because it still thinks the bar is hidden.
-      setVisibilityAsync('hidden');
-      setStatusBarHidden(true);
-    };
-    const subs = (['keyboardDidShow', 'keyboardDidHide'] as const).map((event) =>
-      Keyboard.addListener(event, () => {
-        // The IME animation takes over the window insets, so a single hide gets
-        // overridden. Re-apply it across the animation until one sticks.
-        timers.forEach(clearTimeout);
-        timers = [0, 150, 400, 900, 1500].map((delay) => setTimeout(hide, delay));
-        console.log('[bars] keyboard event, re-hiding the system bars');
-      })
-    );
-    return () => {
-      timers.forEach(clearTimeout);
-      subs.forEach((sub) => sub.remove());
-    };
-  }, [landscape]);
 
   useEffect(() => {
     if (fontsLoaded) {
