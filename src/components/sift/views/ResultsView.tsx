@@ -1,7 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { CommandHeading } from '@/components/sift/CommandHeading';
-import { InsightCard } from '@/components/sift/InsightCard';
 import { ResultTile } from '@/components/sift/ResultTile';
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import type { Orientation } from '@/hooks/use-orientation';
@@ -13,7 +12,7 @@ interface ResultsViewProps {
 }
 
 export function ResultsView({ flow, orientation }: ResultsViewProps) {
-  const { resultSuffix, tiles, resultInsight, resultMetadata } = flow;
+  const { resultSuffix, tiles, resultMetadata } = flow;
 
   const tileGrid = (
     <View style={styles.tiles}>
@@ -43,12 +42,7 @@ export function ResultsView({ flow, orientation }: ResultsViewProps) {
       <View style={styles.wrap}>
         <CommandHeading sigil="//" text="SEARCH_COMPLETE" suffix={resultSuffix} />
         {tileGrid}
-        <View style={styles.bottomRow}>
-          <InsightCard heading="WHY_THIS_PRICE" style={styles.insight}>
-            {resultInsight}
-          </InsightCard>
-          {metadata}
-        </View>
+        <View style={styles.bottomRow}>{metadata}</View>
       </View>
     );
   }
@@ -57,9 +51,6 @@ export function ResultsView({ flow, orientation }: ResultsViewProps) {
     <View style={styles.wrap}>
       <CommandHeading sigil="//" text="SEARCH_COMPLETE" suffix={resultSuffix} />
       {tileGrid}
-      <InsightCard heading="WHY_THIS_PRICE">
-        {resultInsight}
-      </InsightCard>
       {metadata}
     </View>
   );
@@ -71,7 +62,6 @@ const styles = StyleSheet.create({
   tileCol: { gap: 5 },
   tileDomain: { ...SiftType.annot, color: SiftColors.bone, width: 160 },
   bottomRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: SiftSpacing.space4 },
-  insight: { width: '100%', maxWidth: 440, minWidth: 240, flexGrow: 1, flexShrink: 1 },
   metadata: { gap: 5 },
   metaLine: { ...SiftType.annot, color: SiftColors.boneDim },
 });
