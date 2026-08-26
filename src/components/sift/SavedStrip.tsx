@@ -4,30 +4,67 @@ import { SiftColors, SiftType } from '@/constants/sift-theme';
 
 interface SavedStripProps {
   active: boolean;
+  presetsActive: boolean;
   hasDrops: boolean;
   onPress: () => void;
+  onPressPresets: () => void;
 }
 
-/** Vertical "SAVED" tab next to the Rail (landscape chrome). */
-export function SavedStrip({ active, hasDrops, onPress }: SavedStripProps) {
+/** Vertical tab next to the Rail (landscape chrome), split SAVED over PRESETS. */
+export function SavedStrip({ active, presetsActive, hasDrops, onPress, onPressPresets }: SavedStripProps) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.strip, { backgroundColor: active ? SiftColors.slate : SiftColors.carbon }]}>
-      <View />
-      <Text style={[styles.label, { color: active ? SiftColors.bone : SiftColors.boneDim }]}>SAVED</Text>
-      {hasDrops ? <View style={styles.dot} /> : <View />}
-    </Pressable>
+    <View style={styles.strip}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel="Saved searches"
+        style={[styles.half, { backgroundColor: active ? SiftColors.slate : SiftColors.carbon }]}>
+        <Text style={[styles.label, { color: active ? SiftColors.bone : SiftColors.boneDim }]}>SAVED</Text>
+        {hasDrops && <View style={styles.dot} />}
+      </Pressable>
+      <Pressable
+        onPress={onPressPresets}
+        accessibilityRole="button"
+        accessibilityLabel="Source presets"
+        style={[styles.half, styles.halfSecond, { backgroundColor: presetsActive ? SiftColors.slate : SiftColors.carbon }]}>
+        <Text style={[styles.label, { color: presetsActive ? SiftColors.bone : SiftColors.boneDim }]}>PRESETS</Text>
+      </Pressable>
+    </View>
   );
 }
 
-/** "SAVED" pill for the portrait top header bar. */
-export function SavedPill({ hasDrops, onPress }: { hasDrops: boolean; onPress: () => void }) {
+/** The same split as a two-section pill for the portrait top header bar. */
+export function SavedPill({
+  active,
+  presetsActive,
+  hasDrops,
+  onPress,
+  onPressPresets,
+}: {
+  active: boolean;
+  presetsActive: boolean;
+  hasDrops: boolean;
+  onPress: () => void;
+  onPressPresets: () => void;
+}) {
   return (
-    <Pressable onPress={onPress} style={styles.pill}>
-      <Text style={styles.pillLabel}>SAVED</Text>
-      {hasDrops && <Text style={styles.pillDot}>●</Text>}
-    </Pressable>
+    <View style={styles.pill}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel="Saved searches"
+        style={[styles.pillHalf, active && styles.pillHalfActive]}>
+        <Text style={styles.pillLabel}>SAVED</Text>
+        {hasDrops && <Text style={styles.pillDot}>●</Text>}
+      </Pressable>
+      <Pressable
+        onPress={onPressPresets}
+        accessibilityRole="button"
+        accessibilityLabel="Source presets"
+        style={[styles.pillHalf, styles.pillHalfSecond, presetsActive && styles.pillHalfActive]}>
+        <Text style={styles.pillLabel}>PRESETS</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -36,10 +73,9 @@ const styles = StyleSheet.create({
     width: 28,
     borderRightWidth: 1,
     borderRightColor: SiftColors.graphite,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
   },
+  half: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8 },
+  halfSecond: { borderTopWidth: 1, borderTopColor: SiftColors.graphite },
   label: {
     fontFamily: SiftType.label.fontFamily,
     fontSize: 9,
@@ -52,13 +88,14 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: SiftColors.mint },
   pill: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    alignItems: 'stretch',
     height: 24,
-    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: SiftColors.graphite,
   },
+  pillHalf: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8 },
+  pillHalfSecond: { borderLeftWidth: 1, borderLeftColor: SiftColors.graphite },
+  pillHalfActive: { backgroundColor: SiftColors.slate },
   pillLabel: { fontFamily: SiftType.label.fontFamily, fontSize: 9, letterSpacing: 0.8, color: SiftColors.bone },
   pillDot: { color: SiftColors.mint, fontSize: 9 },
 });

@@ -5,6 +5,7 @@ import { fmtPrice } from '@/lib/format-price';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { useLiveSession } from '@/hooks/session/use-live-session';
+import { PRESET_CATEGORIES } from '@/lib/presets';
 import { useFlowStore, type Screen } from '@/store/useFlowStore';
 import type { RecentView } from '@/types/view';
 
@@ -36,7 +37,7 @@ export function useSiftFlow() {
   // and the account panel says why.
   const noProject = !isFirebaseConfigured;
 
-  const { setScreen, setQuery, setInput, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry, openDiscard, closeDiscard } = state;
+  const { setScreen, setQuery, setInput, openCategory, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry, openDiscard, closeDiscard } = state;
   /** Reuses a past search: its query, plus its sources merged into whatever is already staged. */
   const chooseRecent = useCallback(
     (recent: RecentView) => {
@@ -49,6 +50,13 @@ export function useSiftFlow() {
   const closeListing = useCallback(() => state.select(null), [state]);
   const chooseCandidate = useCallback((index: number) => state.choose(index), [state]);
   const openSaved = useCallback(() => setScreen('saved'), [setScreen]);
+  const openPresets = useCallback(() => setScreen('presets'), [setScreen]);
+
+  /** Stages every domain in the open category, then drops back to the sources screen. */
+  const addPresetSources = useCallback(() => {
+    PRESET_CATEGORIES.find((category) => category.id === state.presetCategory)?.domains.forEach(session.addSource);
+    setScreen('sources');
+  }, [session.addSource, state.presetCategory, setScreen]);
 
   const addSourceFromInput = useCallback(() => {
     const domain = toDomain(state.input);
@@ -137,6 +145,8 @@ export function useSiftFlow() {
     const { screen, selected, chosen, dismissed, showArchive, showAccount, showLinks } = state;
     const { tiles, sources, saved, recents, candidates, running, complete, history } = session;
 
+    const presetCategory = PRESET_CATEGORIES.find((category) => category.id === state.presetCategory) ?? null;
+
     const dismissedIds = new Set(dismissed.map((note) => note.id));
     const notes = session.notes.filter((note) => !dismissedIds.has(note.id));
 
@@ -171,6 +181,7 @@ export function useSiftFlow() {
       results: 'LIVE RESULTS',
       dashboard: 'DASHBOARD',
       saved: 'SAVED SEARCHES',
+      presets: 'SOURCE PRESETS',
     };
 
     const statusLine: Record<Screen, string> = {
@@ -189,6 +200,9 @@ export function useSiftFlow() {
       results: `${resolved} PRICES · COMPLETE`,
       dashboard: `${resolved} PRICES · SPREAD ${spread}%`,
       saved: droppedCount > 0 ? `${droppedCount} DROPPED · REVIEW` : `${saved.length} WATCHED · IDLE`,
+      presets: presetCategory
+        ? `${presetCategory.name} · ${presetCategory.domains.length} SOURCES`
+        : `${PRESET_CATEGORIES.length} CATEGORIES · SELECT ONE`,
     };
 
     const nav: Record<
@@ -239,6 +253,13 @@ export function useSiftFlow() {
         },
         secondaryLabel: 'BACK',
         secondaryAction: () => setScreen('results'),
+      },
+      presets: {
+        primaryLabel: 'ADD SOURCES',
+        primaryAction: addPresetSources,
+        primaryDisabled: !presetCategory,
+        secondaryLabel: 'BACK',
+        secondaryAction: () => setScreen('sources'),
       },
       saved: {
         primaryLabel: 'CHECK ALL',
@@ -354,6 +375,8 @@ export function useSiftFlow() {
       linksCount: stagedLinks.length,
       stagedLinks,
       accountEmail: auth.user?.email ?? null,
+      presetCategories: PRESET_CATEGORIES,
+      presetCategory,
       sourceCountLabel: String(sources.length).padStart(2, '0'),
       recentCount: String(recents.length).padStart(2, '0'),
       candidateSelectedLabel: selectedCandidate
@@ -387,6 +410,7 @@ export function useSiftFlow() {
     openConfirm,
     saveCurrentSearch,
     checkAll,
+    addPresetSources,
     setScreen,
   ]);
 
@@ -420,6 +444,9 @@ export function useSiftFlow() {
       checkItem,
       checkAll,
       openSaved,
+      openPresets,
+      openCategory,
+      addPresetSources,
     },
   };
 }

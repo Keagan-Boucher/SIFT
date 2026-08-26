@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 import type { NoteView } from '@/types/view';
 
-export type Screen = 'sources' | 'live' | 'confirm' | 'results' | 'dashboard' | 'saved';
+export type Screen = 'sources' | 'live' | 'confirm' | 'results' | 'dashboard' | 'saved' | 'presets';
 
 /** A note the user dismissed, kept for the session so it can be read back. */
 export interface ArchiveEntry extends NoteView {
@@ -30,6 +30,8 @@ interface FlowStore {
   chosen: number;
   /** Index of the tile whose detail popup is open. */
   selected: number | null;
+  /** Id of the preset category expanded on the presets screen, if any. */
+  presetCategory: string | null;
   dismissed: ArchiveEntry[];
 
   setScreen: (screen: Screen) => void;
@@ -44,6 +46,7 @@ interface FlowStore {
   closeDiscard: () => void;
   choose: (index: number) => void;
   select: (index: number | null) => void;
+  openCategory: (id: string | null) => void;
   archive: (note: NoteView, stamp: string) => void;
   clearArchive: () => void;
 }
@@ -59,6 +62,7 @@ export const useFlowStore = create<FlowStore>((set) => ({
   showDiscard: false,
   chosen: 0,
   selected: null,
+  presetCategory: null,
   dismissed: [],
 
   setScreen: (screen) => set({ screen }),
@@ -74,6 +78,8 @@ export const useFlowStore = create<FlowStore>((set) => ({
   closeDiscard: () => set({ showDiscard: false }),
   choose: (chosen) => set({ chosen }),
   select: (selected) => set({ selected }),
+  // Tapping the open category closes it again, so the menu collapses in place.
+  openCategory: (id) => set((s) => ({ presetCategory: s.presetCategory === id ? null : id })),
   archive: (note, stamp) =>
     set((s) =>
       s.dismissed.some((entry) => entry.id === note.id)

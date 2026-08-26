@@ -15,6 +15,7 @@ import { ConfirmView } from '@/components/sift/views/ConfirmView';
 import { DashboardView } from '@/components/sift/views/DashboardView';
 import { LiveView } from '@/components/sift/views/LiveView';
 import { ResultsView } from '@/components/sift/views/ResultsView';
+import { PresetsView } from '@/components/sift/views/PresetsView';
 import { SavedView } from '@/components/sift/views/SavedView';
 import { SourcesView } from '@/components/sift/views/SourcesView';
 import { SiftColors, SiftSpacing } from '@/constants/sift-theme';
@@ -30,6 +31,7 @@ const VIEW_BY_SCREEN = {
   results: ResultsView,
   dashboard: DashboardView,
   saved: SavedView,
+  presets: PresetsView,
 };
 
 export default function SiftAppScreen() {
@@ -149,7 +151,13 @@ export default function SiftAppScreen() {
             sourceCount={sources.length}
             onPressSession={actions.toggleAccount}
           />
-          <SavedStrip active={state.screen === 'saved'} hasDrops={hasDrops} onPress={actions.openSaved} />
+          <SavedStrip
+            active={state.screen === 'saved'}
+            presetsActive={state.screen === 'presets'}
+            hasDrops={hasDrops}
+            onPress={actions.openSaved}
+            onPressPresets={actions.openPresets}
+          />
           <View style={styles.contentCol}>
             {scrollableContent}
             {popups}
@@ -169,7 +177,13 @@ export default function SiftAppScreen() {
             <View style={[styles.connectionPill, railConnection === 'LIVE' && styles.connectionPillLive]}>
               <Text style={[styles.connectionPillText, railConnection === 'LIVE' && styles.connectionPillTextLive]}>{railConnection}</Text>
             </View>
-            <SavedPill hasDrops={hasDrops} onPress={actions.openSaved} />
+            <SavedPill
+              active={state.screen === 'saved'}
+              presetsActive={state.screen === 'presets'}
+              hasDrops={hasDrops}
+              onPress={actions.openSaved}
+              onPressPresets={actions.openPresets}
+            />
             <Pressable onPress={actions.toggleAccount} accessibilityLabel="Account">
               <Text style={styles.sessionCode}>ACCT</Text>
             </Pressable>
