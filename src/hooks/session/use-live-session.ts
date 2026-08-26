@@ -20,6 +20,7 @@ import {
   toSourceView,
   toTileViews,
 } from '@/lib/map-to-view';
+import { isDomainKnown } from '@/lib/registry';
 import type { ListingDoc, SavedSearchDoc, SearchDoc } from '@/types/firestore';
 import type { NoteView, RecentView, SourceView } from '@/types/view';
 import type { SiftSession } from './types';
@@ -186,6 +187,18 @@ export function useLiveSession(userId: string | null): SiftSession {
     setStagedSources((sources) =>
       sources.some((source) => source.domain === domain) ? sources : [...sources, { domain, status: 'PENDING' }],
     );
+    // A site someone else already solved needs no resolving, so say so before
+    // the run rather than after it. Never fatal: it only upgrades the chip.
+    isDomainKnown(domain)
+      .then((known) => {
+        if (!known) return;
+        setStagedSources((sources) =>
+          sources.map((source) =>
+            source.domain === domain && source.status === 'PENDING' ? { ...source, status: 'KNOWN' } : source,
+          ),
+        );
+      })
+      .catch(() => {});
   }, []);
 
   const removeSource = useCallback((domain: string) => {

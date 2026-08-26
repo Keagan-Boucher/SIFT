@@ -3,10 +3,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 
-export type SourceStatus = 'PENDING' | 'RESOLVED' | 'BLOCKED' | 'FAILED';
+export type SourceStatus = 'PENDING' | 'KNOWN' | 'RESOLVED' | 'BLOCKED' | 'FAILED';
 
 const STATUS: Record<SourceStatus, { bg: string; text: string; hazard?: boolean }> = {
   PENDING: { bg: SiftColors.graphite, text: SiftColors.bone },
+  // Already solved in the registry, before this search has run.
+  KNOWN: { bg: SiftColors.mint, text: SiftColors.void },
   RESOLVED: { bg: SiftColors.mint, text: SiftColors.void },
   BLOCKED: { bg: SiftColors.ember, text: SiftColors.void, hazard: true },
   FAILED: { bg: SiftColors.ember, text: SiftColors.void },
