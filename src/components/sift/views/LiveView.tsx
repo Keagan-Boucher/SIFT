@@ -4,8 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CommandHeading } from '@/components/sift/CommandHeading';
 import { CornerBrackets } from '@/components/sift/CornerBrackets';
 import { PlusGrid } from '@/components/sift/PlusGrid';
-import { ProgressBar } from '@/components/sift/ProgressBar';
 import { ResultTile } from '@/components/sift/ResultTile';
+import { RunningDots } from '@/components/sift/RunningDots';
 import { ScanSweep } from '@/components/sift/ScanSweep';
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import type { Orientation } from '@/hooks/use-orientation';
@@ -36,13 +36,14 @@ export function LiveView({ flow }: LiveViewProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.headingRow}>
-        <CommandHeading sigil="//" text={heading} suffix={suffix} />
+        <View style={styles.headingLeft}>
+          <CommandHeading sigil="//" text={heading} suffix={suffix} />
+          {running && <RunningDots />}
+        </View>
         <Text style={styles.listenerNote}>V {Constants.expoConfig?.version ?? '1.0.0'}</Text>
       </View>
 
-      {running && (
-        <ProgressBar value={sources.length > 0 ? resolved / sources.length : 0} label={activity} style={styles.progress} />
-      )}
+      {running && <Text style={styles.activity}>{activity}</Text>}
 
       <View style={styles.tileRow}>
         {running && <ScanSweep />}
@@ -76,7 +77,8 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, padding: SiftSpacing.space4, gap: SiftSpacing.space3 },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SiftSpacing.space4 },
   listenerNote: { ...SiftType.annot, color: SiftColors.boneDim },
-  progress: { maxWidth: 420 },
+  headingLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  activity: { ...SiftType.annot, color: SiftColors.bone, textTransform: 'uppercase' },
   tileRow: { position: 'relative', flexDirection: 'row', flexWrap: 'wrap', gap: SiftSpacing.space3 },
   tileCol: { gap: 5 },
   tileFooter: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, width: 160 },
