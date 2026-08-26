@@ -3,6 +3,7 @@ import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
+import { POINT_WIDTH, layoutPoints } from '@/lib/spread-layout';
 import { Tag } from './Tag';
 
 export interface SpreadPoint {
@@ -17,8 +18,6 @@ interface TheSpreadProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const POINT_WIDTH = 60;
-
 export function TheSpread({ points, spreadLabel, style }: TheSpreadProps) {
   const [width, setWidth] = useState(0);
   const prices = points.map((p) => p.value);
@@ -27,14 +26,9 @@ export function TheSpread({ points, spreadLabel, style }: TheSpreadProps) {
   const sorted = [...prices].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
 
-  const frac = (v: number) => (v - min) / (max - min || 1);
-  // Clamp so the fixed-width point label never overflows the track, mirroring the
-  // web version's `calc(pct% ± px)` edge correction.
-  const left = (v: number) => {
-    if (width === 0) return 0;
-    const raw = frac(v) * width;
-    return Math.min(Math.max(raw, POINT_WIDTH / 2), width - POINT_WIDTH / 2) - POINT_WIDTH / 2;
-  };
+  const lefts = width > 0 ? layoutPoints(prices, width) : [];
+  // The median line marks a value, not a point, so it stays where the value is.
+  const medianLeft = ((median - min) / (max - min || 1)) * width;
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
@@ -47,18 +41,21 @@ export function TheSpread({ points, spreadLabel, style }: TheSpreadProps) {
       <View style={styles.track} onLayout={onLayout}>
         {width > 0 && (
           <>
-            <View style={[styles.medianLine, { left: left(median) + POINT_WIDTH / 2 }]} />
+            <View style={[styles.medianLine, { left: medianLeft }]} />
             {points.map((p, i) => (
-              <View key={i} style={[styles.point, { left: left(p.value) }]}>
+              <View key={i} style={[styles.point, { left: lefts[i] }]}>
                 <Text
                   style={[
                     styles.pointPrice,
                     { color: p.value === min ? SiftColors.mint : p.value === max ? SiftColors.ember : SiftColors.bone },
-                  ]}>
+                  ]}
+                  numberOfLines={1}>
                   {p.priceLabel}
                 </Text>
                 <View style={styles.tick} />
-                <Text style={styles.pointLabel}>{p.label}</Text>
+                <Text style={styles.pointLabel} numberOfLines={1}>
+                  {p.label}
+                </Text>
               </View>
             ))}
           </>
