@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CommandHeading } from '@/components/sift/CommandHeading';
 import { SourceChip } from '@/components/sift/SourceChip';
 import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
+import { isDomainKnown } from '@/lib/registry';
 import type { Orientation } from '@/hooks/use-orientation';
 import type { SiftFlow } from '@/hooks/use-sift-flow';
 
@@ -14,6 +16,27 @@ interface PresetsViewProps {
 /** Curated categories, each cascading open to the sources ADD SOURCES will stage. */
 export function PresetsView({ flow }: PresetsViewProps) {
   const { presetCategories, presetCategory, actions } = flow;
+  // One registry read per domain, the first time its category is opened. The
+  // answer is the same for everyone, so it is cached for the rest of the visit.
+  const [known, setKnown] = useState<Record<string, boolean>>({});
+
+  const openDomains = presetCategory?.domains;
+  useEffect(() => {
+    if (!openDomains) return;
+    let live = true;
+    openDomains
+      .filter((domain) => known[domain] === undefined)
+      .forEach((domain) => {
+        isDomainKnown(domain)
+          .then((result) => live && setKnown((current) => ({ ...current, [domain]: result })))
+          .catch(() => {});
+      });
+    return () => {
+      live = false;
+    };
+    // known is read, not tracked: adding it would re-run the effect on every answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDomains]);
 
   return (
     <View style={styles.wrap}>
@@ -39,7 +62,7 @@ export function PresetsView({ flow }: PresetsViewProps) {
             {open && (
               <View style={styles.domains}>
                 {category.domains.map((domain) => (
-                  <SourceChip key={domain} domain={domain} status="PENDING" />
+                  <SourceChip key={domain} domain={domain} status={known[domain] ? 'KNOWN' : 'PENDING'} />
                 ))}
               </View>
             )}
