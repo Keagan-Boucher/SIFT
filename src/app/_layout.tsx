@@ -39,9 +39,8 @@ export default function RootLayout() {
     if (Platform.OS !== 'android' || !landscape) {
       return;
     }
-    let retry: ReturnType<typeof setTimeout>;
+    let timers: ReturnType<typeof setTimeout>[] = [];
     const hide = () => {
-      console.log('[bars] keyboard event, re-hiding the system bars');
       // setVisibilityAsync skips the dedupe in NavigationBar.setHidden, which
       // swallows the call because it still thinks the bar is hidden.
       setVisibilityAsync('hidden');
@@ -49,14 +48,15 @@ export default function RootLayout() {
     };
     const subs = (['keyboardDidShow', 'keyboardDidHide'] as const).map((event) =>
       Keyboard.addListener(event, () => {
-        hide();
-        // The IME animation can re-assert the bars after the event fires.
-        clearTimeout(retry);
-        retry = setTimeout(hide, 300);
+        // The IME animation takes over the window insets, so a single hide gets
+        // overridden. Re-apply it across the animation until one sticks.
+        timers.forEach(clearTimeout);
+        timers = [0, 150, 400, 900, 1500].map((delay) => setTimeout(hide, delay));
+        console.log('[bars] keyboard event, re-hiding the system bars');
       })
     );
     return () => {
-      clearTimeout(retry);
+      timers.forEach(clearTimeout);
       subs.forEach((sub) => sub.remove());
     };
   }, [landscape]);
