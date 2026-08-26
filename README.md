@@ -75,14 +75,16 @@ The project is built against three fixed inspiration cards, and every major deci
 
 ### Implemented
 
-- **Source management.** Add retailer domains, see per-source status (`PENDING`, `RESOLVING`, `RESOLVED`, `BLOCKED`, `FAILED`) and remove sources that cannot be scraped.
-- **Live results stream.** Result tiles arrive one per source as each resolves, with a scanning sweep and a live progress bar.
-- **Confirm matches.** When match confidence drops below threshold, the user picks the right listing from candidate cards instead of getting the wrong product.
+- **Source management.** Add retailer domains, see per-source status (`PENDING`, `KNOWN`, `RESOLVED`, `BLOCKED`, `FAILED`) and remove sources that cannot be scraped. A domain already solved in the shared registry is flagged `KNOWN` before the search runs, so the user knows it needs no resolving.
+- **Source presets.** A curated category menu, reached from the toolbar beside `SAVED`. Categories cascade open to the domains they hold, and `ADD SOURCES` stages the lot into `//SOURCES` in one tap. Curated by hand in [`src/lib/presets.ts`](src/lib/presets.ts).
+- **Live results stream.** Result tiles arrive one per source as each resolves, with a scanning sweep and animated running dots while the pipeline works.
+- **Confirm matches.** When match confidence drops below threshold, the user picks the right listing from candidate cards instead of getting the wrong product. If nothing a source returned is right, it can be discarded from the run behind a confirmation prompt, leaving every other source untouched.
 - **Results grid.** Every resolved listing with price, retailer, extraction tier and confidence, lowest price flagged.
-- **Spread dashboard.** Price ladder, spread percentage, history bars and insight cards.
-- **Saved searches.** Watch a search, check it for movement and get a price-drop note when it falls.
+- **Spread dashboard.** Price ladder, spread percentage, history bars and insight cards. Every axis point and ladder row opens its listing detail, and the listing's URL opens the product in the device browser.
+- **Saved searches.** Watch a search, check it for movement and get a price-drop note when it falls. Past searches list one row per run, and tapping one restores its query and restages the domains it used.
 - **Alert log.** Blocked sources, confirm prompts and price drops surface as dismissible banners and archive to a session log.
-- **Landscape and portrait layouts.** A vertical rail in landscape, a compact header bar in portrait, switched on `useWindowDimensions`.
+- **Landscape and portrait layouts.** A vertical rail in landscape, a compact header bar in portrait, switched on `useWindowDimensions`. Landscape also hides the Android status and navigation bars, so the rail owns the edge rather than sharing it with system chrome.
+- **Splash and auth gate.** A boot screen runs the scan sweep while Firebase restores a persisted session, times out rather than hanging on an unreachable backend, and hands off to a login/signup gate or straight into the app.
 - **Extraction pipeline.** JSON-LD, Open Graph, microdata and heuristic HTML parsing, covered by unit tests against real and synthetic fixtures.
 - **Headless rendering fallback.** A client-rendered storefront is rendered in a real headless Chromium browser before the same parsers run against the result, reached only once the plain-fetch tiers have both failed.
 - **Full resolution cascade.** Registry lookup, generic search-form discovery, platform fingerprinting for nine ecommerce platforms, and a user-pasted search URL as the last resort. Everything discovered is written back to the shared registry.
@@ -289,7 +291,7 @@ EXPO_PUBLIC_USE_FIREBASE_EMULATOR=false
 ```
 
 > [!TIP]
-> With `EXPO_PUBLIC_FIREBASE_API_KEY` and `EXPO_PUBLIC_FIREBASE_PROJECT_ID` blank the app runs on its seeded dataset, so every screen is navigable **without** any Firebase credentials. Fill them in to get live scraping, accounts and watches. The account panel, opened from the session code, tells you which mode you are in.
+> SIFT needs a backend. With `EXPO_PUBLIC_FIREBASE_API_KEY` and `EXPO_PUBLIC_FIREBASE_PROJECT_ID` blank the app still launches and every screen is navigable, but there is nothing behind them: no accounts, no scraping, no watches, and the status line reads `NO PROJECT`. The account panel, opened from the account button, says so directly. Point the app at the Docker emulator suite below, or at a real project, to get anything back. The seeded demo dataset that used to fill this gap has been removed: a fake dataset that drifts from the real pipeline is worse than an honest empty screen.
 
 ### 3. Database and backend (Docker)
 
@@ -381,17 +383,29 @@ Then choose a target:
 | **Physical device**           | `npx expo start` then scan the QR code | Needs Expo Go and the phone on the same network                                    |
 
 <details>
-<summary><b>Lecturer quick start: no Firebase account, no Docker, about two minutes</b></summary>
+<summary><b>Lecturer quick start: no Firebase account, about five minutes</b></summary>
 
 ```bash
 git clone https://github.com/KeaganCB-OW/SIFT.git
 ```
 
 ```bash
-cd SIFT && npm install && npm run web
+cd SIFT && npm install
 ```
 
-The seeded dataset drives the full six-screen flow, so the whole app is reviewable from the browser with no backend running. Widen the window past 768px for the landscape layout. To see the backend as well, add `docker compose up` in a second terminal.
+Start the emulator suite in one terminal. It needs no cloud project and no billing:
+
+```bash
+docker compose up
+```
+
+Then, with `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` in `.env`, start the app in a second terminal:
+
+```bash
+npm run web
+```
+
+That runs the real pipeline against local Firestore, Auth and Functions. Widen the window past 768px for the landscape layout. Running `npm run web` on its own still launches the app, but with no backend behind it the screens are empty.
 
 </details>
 
@@ -413,11 +427,13 @@ The seeded dataset drives the full six-screen flow, so the whole app is reviewab
 
 ## Usage
 
-The app is a six-screen flow, driven by the `RUN SEARCH` primary action and a persistent action bar. The bar's primary button always advances the flow, the secondary always goes back, and the status line on the right reports live state.
+The app is a seven-screen flow, driven by the `RUN SEARCH` primary action and a persistent action bar. The bar's primary button always advances the flow, the secondary always goes back, and the status line on the right reports live state.
 
 ```mermaid
 flowchart LR
-    S["1. Sources"] -->|RUN SEARCH| L["2. Live"]
+    P["Presets"] -->|ADD SOURCES| S
+    S["1. Sources"] -->|PRESETS| P
+    S -->|RUN SEARCH| L["2. Live"]
     L -->|CONFIRM MATCHES| R["4. Results"]
     L -->|low confidence| C["3. Confirm"]
     C -->|CONFIRM MATCH| L
@@ -428,11 +444,15 @@ flowchart LR
 
 ### 1. Add sources
 
-Type a product query, then add the retailer domains to search. Pasted URLs are stripped back to the bare domain. Each source shows its status, and a `BLOCKED` source must be removed before the search can run. Recent searches are one tap away.
+Type a product query, then add the retailer domains to search. Pasted URLs are stripped back to the bare domain. Each source shows its status: a domain the registry has already solved reads `KNOWN` straight away, and a `BLOCKED` source must be removed before the search can run.
+
+Sources can also come from a preset. The toolbar beside the content is split in two, `SAVED` and `PRESETS`. The second opens a curated category menu that cascades open to the domains it holds, and `ADD SOURCES` stages them all and returns here. A preset merges into whatever is already staged rather than replacing it.
+
+Past searches list one row per run, newest first. Tapping one restores its query and restages the domains that run used.
 
 ### 2. Live results
 
-Result tiles stream in one per source as it resolves. The rail shows a `LIVE` indicator, the status line counts resolved sources, and any tile that matched below confidence threshold is flagged for review. Selecting a tile opens its listing detail: URL, resolution method, stock, price position relative to the lowest, and the confidence score out of four.
+Result tiles stream in one per source as it resolves. Running dots animate while the pipeline works, the status line counts resolved sources and reports `LIVE`, and any tile that matched below confidence threshold is flagged for review. Selecting a tile opens its listing detail: URL, resolution method, stock, price position relative to the lowest, and the confidence score out of four.
 
 A source that could not be read reports why, and its alert offers `PASTE URL`: search that retailer yourself, paste the URL of its results page, and the route is staged rather than retried on the spot. Several failed sources can each be given one, reviewed in the `LINKS [n]` panel, and picked up together by a single `RETRY SEARCH`. A pasted route that works is written back to the registry, so the domain resolves on its own from then on.
 
@@ -440,13 +460,17 @@ A source that could not be read reports why, and its alert offers `PASTE URL`: s
 
 Where confidence was low, candidate listings are shown side by side with title, price and confidence. Picking one rewrites that tile in place and clears the review prompt into the alert log. This is what stops the app confidently comparing the wrong product.
 
+If none of them is the product, that source can be discarded from the run behind a confirmation prompt. Every other source and its price is left alone.
+
 ### 4. Results
 
-Every resolved listing in one grid, lowest price flagged, each tile carrying its extraction tier and confidence badge.
+Every resolved listing in one grid, lowest price flagged, each tile carrying its extraction tier and confidence badge. Tapping a tile opens its listing detail.
 
 ### 5. Dashboard
 
 The spread view. A price ladder positions every retailer between cheapest and dearest, the spread percentage quantifies the gap, history bars show recent movement and insight cards explain what the numbers mean. This screen carries the Learn Something goal.
+
+In landscape the ladder becomes a number line. Points are placed by value, then swept apart so that two retailers a rand apart never draw over each other ([`src/lib/spread-layout.ts`](src/lib/spread-layout.ts)). Tapping any point or ladder row opens the listing behind it, and the URL in that panel opens the product in the device browser.
 
 ### 6. Saved searches
 
@@ -458,7 +482,7 @@ Blocked sources, confirm prompts and price drops appear as banners tagged by sig
 
 ### Landscape support
 
-In landscape a 56px vertical rail carries the screen name, connection state, source count and session code, with the saved-searches strip beside it. In portrait that collapses to a horizontal header bar and the content reflows to a single column. Layout is chosen from `useWindowDimensions`, so both orientations ship rather than one being locked out.
+In landscape a 56px vertical rail carries the screen name, a tick per staged source and the account button, with the split `SAVED` / `PRESETS` strip beside it. Android's status and navigation bars are hidden in landscape, so the rail sits against the edge rather than sharing it with system chrome. In portrait that collapses to a horizontal header bar carrying the same account button, and the content reflows to a single column. Layout is chosen from `useWindowDimensions`, so both orientations ship rather than one being locked out.
 
 ---
 
@@ -561,6 +585,14 @@ npm test --prefix functions
 
 The pipeline suite runs without Firebase, which also proves the registry degrades rather than throwing when Firestore is unavailable.
 
+The one piece of frontend logic with a failure mode you cannot see by looking at it, the spread axis placement, carries its own runnable check:
+
+```bash
+npx tsx src/lib/spread-layout.check.ts
+```
+
+It asserts that no two points overlap when prices bunch at either end of the range, when several are identical, and that value order survives the nudging.
+
 ### Smoke-testing the deployed backend
 
 The unit suites never touch the network or a browser, so they cannot tell you whether what is deployed actually works. This does: it signs in anonymously, writes a real search document and waits for the trigger to resolve, scrape and score it, exactly as the app would.
@@ -595,19 +627,27 @@ npm run lint
 ```
 SIFT/
 ├── src/
-│   ├── app/                   Expo Router screens (_layout, index)
-│   ├── components/sift/       25 design-system components
-│   │   └── views/             The six screen views
+│   ├── app/                   Expo Router screens
+│   │   ├── index.tsx          Splash and boot sequence
+│   │   ├── auth.tsx           Login and signup gate
+│   │   └── app.tsx            The seven-screen shell, rail and action bar
+│   ├── components/sift/       29 design-system components
+│   │   └── views/             The seven screen views
 │   ├── constants/
-│   │   ├── sift-theme.ts      Design tokens, single source of truth
-│   │   └── sift-mock-data.ts  Seeded dataset driving the UI
+│   │   └── sift-theme.ts      Design tokens, single source of truth
 │   ├── hooks/
 │   │   ├── use-sift-flow.ts   View model: derived UI state and actions
-│   │   ├── use-auth.ts        Anonymous sign-in and guest upgrade
-│   │   ├── session/           Live Firestore session and seeded demo session
+│   │   ├── use-auth.ts        Anonymous sign-in, guest upgrade, sign-out
+│   │   ├── session/           Live Firestore session
 │   │   ├── use-orientation.ts
 │   │   └── use-orientation-policy.ts
-│   ├── lib/                   Firebase client, Firestore queries, doc-to-view mappers
+│   ├── lib/
+│   │   ├── firebase.ts        Client init and emulator wiring
+│   │   ├── searches.ts        Firestore queries and listeners
+│   │   ├── map-to-view.ts     Firestore documents to view models
+│   │   ├── registry.ts        Is this domain already solved for everyone?
+│   │   ├── presets.ts         Curated source categories, hand-maintained
+│   │   └── spread-layout.ts   Non-overlapping point placement, with its check
 │   ├── store/                 Zustand flow store (UI state only)
 │   └── types/                 Firestore document types and view model types
 ├── functions/src/
@@ -649,7 +689,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Area                                     |        State         |
 | ---------------------------------------- | :------------------: |
 | Design system and tokens                 |       Complete       |
-| Six screens, landscape and portrait      |       Complete       |
+| Seven screens, landscape and portrait    |       Complete       |
 | Flow state machine and Zustand store     |       Complete       |
 | Resolution methods A to D                |   Complete, tested   |
 | Extraction tiers 3 and 4                 |   Complete, tested   |
@@ -666,6 +706,8 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Docker emulator environment              |       Complete       |
 | EAS build profiles                       |       Complete       |
 | Paste-a-search-URL recovery and staged links | Complete         |
+| Splash, auth gate and account panel      |       Complete       |
+| Curated source presets                   | Complete. Categories are hand-maintained |
 | Extraction tiers 1 and 2                 | Future consideration |
 | Store submission                         |       Planned        |
 
@@ -675,7 +717,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 
 | Contributor                                                         | Role                        | Contributions                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Keagan Boucher** ([@KeaganCB-OW](https://github.com/KeaganCB-OW)) | Sole developer and designer | Concept and pitch, SIFT design system and tokens, all six screens and 25 components, flow state machine, landscape and portrait layouts, Firestore schema and security rules, resolution and extraction pipelines, backend test suite, Docker emulator environment, documentation |
+| **Keagan Boucher** ([@KeaganCB-OW](https://github.com/KeaganCB-OW)) | Sole developer and designer | Concept and pitch, SIFT design system and tokens, all seven screens and 29 components, flow state machine, landscape and portrait layouts, Firestore schema and security rules, resolution and extraction pipelines, backend test suite, Docker emulator environment, documentation |
 
 ### Contributing
 

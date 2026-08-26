@@ -1,7 +1,6 @@
 /**
- * The shapes the screens render. Both the seeded demo dataset and the live
- * Firestore stream are mapped into these, so no view component knows or cares
- * which one it is looking at.
+ * The shapes the screens render. The live Firestore stream is mapped into
+ * these, so no view component ever handles a raw Firestore document.
  */
 
 import type { SourceStatus } from '@/components/sift/SourceChip';

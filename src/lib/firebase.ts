@@ -18,9 +18,9 @@ const firebaseConfig = {
 };
 
 /**
- * With no project configured the app runs on the seeded dataset instead of
- * failing at launch. That keeps it demoable on a machine with no Firebase
- * credentials, and it is the honest signal for which mode the UI is in.
+ * With no project configured the app still launches, with nothing behind the
+ * screens, rather than failing outright. It is the honest signal for which
+ * mode the UI is in, and the account panel says so in words.
  */
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
