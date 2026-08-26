@@ -69,7 +69,7 @@ export const TILES: MockTile[] = [
     value: 3240,
     count: 2,
     issue: true,
-    title: 'Samsung Galaxy S24 Ultra (unconfirmed match)',
+    title: 'Samsung Galaxy S24 Ultra',
     url: 'evetech.co.za/search?q=galaxy+s24+ultra+256gb',
     method: 'T4 · HEURISTIC HTML',
     stock: 'UNKNOWN',

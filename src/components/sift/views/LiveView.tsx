@@ -21,7 +21,8 @@ export function LiveView({ flow }: LiveViewProps) {
   const { state, resolved, running, complete, sources, tiles, liveInsight } = flow;
   const heading = running ? 'SEARCH_RUNNING' : 'SEARCH_COMPLETE';
   const suffix = `${resolved}/${sources.length}`;
-  const slotCount = Math.max(0, 4 - tiles.length);
+  // Placeholders only mean anything while sources are still reporting in.
+  const slotCount = running ? Math.max(0, 4 - tiles.length) : 0;
 
   // What the pipeline is doing right now, so a slow search reads as busy
   // rather than hung. Locating still means finding the right page; once every
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
   tileDomain: { ...SiftType.annot, color: SiftColors.bone, flexShrink: 1 },
   tileIssue: { ...SiftType.annot, color: SiftColors.ember },
   slotCol: { gap: 5 },
-  slot: { position: 'relative', width: 160, height: 136, borderWidth: 1, borderColor: SiftColors.graphite },
+  slot: { position: 'relative', width: 160, height: 96, borderWidth: 1, borderColor: SiftColors.graphite },
   slotLabel: { ...SiftType.annot, color: SiftColors.boneDim, width: 160 },
   insight: { maxWidth: 420, alignSelf: 'flex-start' },
 });

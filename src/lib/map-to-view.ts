@@ -51,7 +51,7 @@ export function toTileView(listing: ListingDoc, lowestPrice: number): TileView {
     lowest: listing.price === lowestPrice,
     count: listing.needsConfirmation ? listing.candidates.length + 1 : undefined,
     issue: listing.needsConfirmation,
-    title: listing.needsConfirmation ? `${listing.title} (unconfirmed match)` : listing.title,
+    title: listing.title,
     url: listing.url.replace(/^https?:\/\//, ''),
     method: TIER_LABEL[listing.extractionTier],
     stock: listing.inStock ? 'IN STOCK' : 'OUT OF STOCK',
