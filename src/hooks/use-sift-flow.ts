@@ -390,6 +390,8 @@ export function useSiftFlow() {
       chooseCandidate,
       openConfirm,
       confirmMatches,
+      // Nothing here matched: drop the whole run and start over from sources.
+      discardSearch: backToSourcesFromLive,
       dismissNote,
       toggleArchive,
       toggleAccount,

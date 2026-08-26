@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Button } from '@/components/sift/Button';
 import { CommandHeading } from '@/components/sift/CommandHeading';
 import { ConfirmMatchCandidate } from '@/components/sift/ConfirmMatchCandidate';
 import { CornerBrackets } from '@/components/sift/CornerBrackets';
@@ -27,6 +28,9 @@ export function ConfirmView({ flow, orientation }: ConfirmViewProps) {
         </Pressable>
       ))}
       {orientation === 'portrait' && <Text style={styles.selectedLabel}>SELECTED: {candidateSelectedLabel}</Text>}
+      <Button variant="ghost" onPress={actions.discardSearch} style={styles.discard}>
+        DISCARD SEARCH
+      </Button>
     </View>
   );
 
@@ -64,5 +68,6 @@ const styles = StyleSheet.create({
   list: { flex: 1, minWidth: 280, gap: SiftSpacing.space2 },
   candidate: { maxWidth: 560 },
   sidebar: { flexBasis: 240, flexGrow: 0, flexShrink: 1, minWidth: 200, maxWidth: 280, gap: SiftSpacing.space3 },
+  discard: { alignSelf: 'flex-start', minWidth: 150, height: 40 },
   selectedLabel: { ...SiftType.annot, color: SiftColors.boneDim },
 });
