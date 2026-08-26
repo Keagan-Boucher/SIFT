@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionBar } from '@/components/sift/ActionBar';
@@ -58,8 +58,27 @@ export default function SiftAppScreen() {
     />
   ));
 
+  // Any panel is dismissed by tapping the screen behind it. Only one of the
+  // account, archive and links panels can be open at once, but a listing or a
+  // prompt can sit alongside one, so every open panel is closed together.
+  const openPopups = [
+    showListing && listing ? actions.closeListing : null,
+    showAccount ? actions.toggleAccount : null,
+    showArchive ? actions.toggleArchive : null,
+    showLinks ? actions.toggleLinks : null,
+    state.showDiscard ? actions.closeDiscard : null,
+    state.retryDomain ? actions.closeRetry : null,
+  ].filter((close): close is () => void => close !== null);
+
   const popups = (
     <>
+      {openPopups.length > 0 && (
+        <Pressable
+          style={[StyleSheet.absoluteFill, styles.backdrop]}
+          onPress={() => openPopups.forEach((close) => close())}
+          accessibilityLabel="Close the open panel"
+        />
+      )}
       {showListing && listing && (
         <View style={[styles.popupAnchor, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
           <ListingDetailPopup listing={listing} onClose={actions.closeListing} />
@@ -228,8 +247,9 @@ const styles = StyleSheet.create({
   connectionPillLive: { backgroundColor: SiftColors.mint },
   connectionPillText: { fontFamily: 'JetBrainsMono_700Bold', fontSize: 11, letterSpacing: 0.88, color: SiftColors.boneDim },
   connectionPillTextLive: { color: SiftColors.void },
-  popupAnchor: { position: 'absolute', zIndex: 5 },
+  backdrop: { zIndex: 4 },
+  popupAnchor: { position: 'absolute', zIndex: 5, justifyContent: 'flex-end', alignItems: 'flex-end' },
   popupAnchorAbove: { zIndex: 6 },
-  popupAnchorLandscape: { right: 12, bottom: 12 },
-  popupAnchorPortrait: { left: 12, right: 12, bottom: 12 },
+  popupAnchorLandscape: { top: 12, right: 12, bottom: 12 },
+  popupAnchorPortrait: { top: 12, left: 12, right: 12, bottom: 12 },
 });
