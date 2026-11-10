@@ -3,8 +3,6 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { DotMatrix } from '@/components/sift/DotMatrix';
-import { ScanSweep } from '@/components/sift/ScanSweep';
 import { SiftMark } from '@/components/sift/SiftMark';
 import { SiftColors, SiftFontFamily, SiftSpacing, SiftType } from '@/constants/sift-theme';
 import { useAuth } from '@/hooks/use-auth';
@@ -63,7 +61,7 @@ export default function SplashScreen() {
   const status = (
     <>
       <Text style={[styles.status, timedOut && !resolved && styles.statusStalled]}>
-        {timedOut && !resolved ? '!BACKEND_UNREACHABLE' : '//INITIALIZING_SESSION'}
+        {timedOut && !resolved ? 'BACKEND UNREACHABLE' : 'STARTING'}
       </Text>
       <View style={styles.barTrack}>
         <Animated.View style={[styles.barFill, barStyle]} />
@@ -78,8 +76,6 @@ export default function SplashScreen() {
   if (orientation === 'landscape') {
     return (
       <Pressable style={styles.screen} onPress={skip} accessibilityLabel="Skip splash">
-        <DotMatrix density="lo" />
-        <ScanSweep direction="vertical" />
         <View style={styles.landscapeBody}>
           <View style={styles.landscapeBrand}>
             <SiftMark width={40} />
@@ -94,8 +90,6 @@ export default function SplashScreen() {
 
   return (
     <Pressable style={styles.screen} onPress={skip} accessibilityLabel="Skip splash">
-      <DotMatrix density="lo" />
-      <ScanSweep direction="vertical" />
       <View style={styles.portraitBody}>
         <View style={styles.portraitBrand}>
           <SiftMark width={46} />
@@ -108,17 +102,17 @@ export default function SplashScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: SiftColors.void, overflow: 'hidden' },
+  screen: { flex: 1, backgroundColor: SiftColors.canvas, overflow: 'hidden' },
 
   portraitBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  portraitBrand: { alignItems: 'center', gap: SiftSpacing.space4 },
+  portraitBrand: { alignItems: 'center', gap: SiftSpacing.s4 },
   portraitStatus: {
     position: 'absolute',
     bottom: 113,
     left: 0,
     right: 0,
     alignItems: 'center',
-    gap: SiftSpacing.space3,
+    gap: SiftSpacing.s3,
   },
 
   landscapeBody: {
@@ -126,23 +120,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SiftSpacing.space7,
+    gap: 48,
   },
-  landscapeBrand: { alignItems: 'center', gap: SiftSpacing.space3 },
-  landscapeStatus: { alignItems: 'flex-start', gap: SiftSpacing.space3 },
-  divider: { width: 1, height: 100, backgroundColor: SiftColors.graphite },
+  landscapeBrand: { alignItems: 'center', gap: SiftSpacing.s3 },
+  landscapeStatus: { alignItems: 'flex-start', gap: SiftSpacing.s3 },
+  divider: { width: 1, height: 100, backgroundColor: SiftColors.hairline },
 
   wordmark: {
     fontFamily: SiftFontFamily.display,
     fontSize: 44,
     lineHeight: 44,
-    letterSpacing: -0.88,
-    color: SiftColors.bone,
+    letterSpacing: 1,
+    color: SiftColors.text,
   },
-  wordmarkLandscape: { fontSize: 40, lineHeight: 40, letterSpacing: -0.8 },
+  wordmarkLandscape: { fontSize: 40, lineHeight: 40, letterSpacing: 1 },
 
   status: { ...SiftType.label, color: SiftColors.mint, textTransform: 'uppercase' },
   statusStalled: { color: SiftColors.ember },
-  barTrack: { width: 160, height: 3, backgroundColor: SiftColors.slate, overflow: 'hidden' },
+  barTrack: { width: 160, height: 3, borderRadius: 1, backgroundColor: SiftColors.track, overflow: 'hidden' },
   barFill: { height: 3, backgroundColor: SiftColors.mint },
 });

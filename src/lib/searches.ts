@@ -8,13 +8,14 @@ import {
   query as fsQuery,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
 import { db, functions } from '@/lib/firebase';
-import type { ListingDoc, PricePointDoc, SavedSearchDoc, SearchDoc } from '@/types/firestore';
+import type { ListingDoc, SavedSearchDoc, SearchDoc } from '@/types/firestore';
 
 /**
  * Creates the search the pipeline reacts to. The client writes the document and
@@ -34,6 +35,8 @@ export async function createSearch(
     ...(userSearchUrls && Object.keys(userSearchUrls).length > 0 ? { userSearchUrls } : {}),
     status: 'pending',
     resolvedCount: 0,
+    step: 'scan',
+    stepUpdatedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -91,17 +94,18 @@ export function subscribeToSavedSearches(
   );
 }
 
-/** Price history for one watched search, oldest first, feeding the history bars. */
-export function subscribeToPriceHistory(
-  savedSearchId: string,
-  onChange: (points: PricePointDoc[]) => void,
-  onError?: (error: Error) => void,
-): Unsubscribe {
-  return onSnapshot(
-    fsQuery(collection(db, 'savedSearches', savedSearchId, 'pricePoints'), orderBy('observedAt', 'asc')),
-    (snapshot) => onChange(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as PricePointDoc)),
-    onError,
-  );
+/**
+ * Moves the resume pointer, and records the lowest price seen so far so the
+ * home screen can show it without a listings query per search.
+ */
+export async function updateSearchProgress(
+  searchId: string,
+  progress: { step?: SearchDoc['step']; lowestPrice?: number | null },
+): Promise<void> {
+  await updateDoc(doc(db, 'searches', searchId), {
+    ...progress,
+    ...(progress.step ? { stepUpdatedAt: serverTimestamp() } : {}),
+  });
 }
 
 /** Watches a search, so the scheduled recheck starts tracking its lowest price. */

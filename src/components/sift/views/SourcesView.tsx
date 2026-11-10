@@ -1,148 +1,116 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button } from '@/components/sift/Button';
-import { CommandHeading } from '@/components/sift/CommandHeading';
-import { Input } from '@/components/sift/Input';
-import { SourceChip } from '@/components/sift/SourceChip';
-import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
-import type { Orientation } from '@/hooks/use-orientation';
+import { Screen } from '@/components/ui/Screen';
+import { Button, Check, Hairline, Heading, Input, Label, Row } from '@/components/ui/kit';
+import { SiftColors, SiftSpacing } from '@/constants/sift-theme';
 import type { SiftFlow } from '@/hooks/use-sift-flow';
+import { useOrientation } from '@/hooks/use-orientation';
 
-interface SourcesViewProps {
-  flow: SiftFlow;
-  orientation: Orientation;
-}
+/** 02 New search. The query drives the suggested sites, so the field comes first. */
+export function SourcesView({ flow }: { flow: SiftFlow }) {
+  const { query, session, suggestions, allSuggestions, ownUrl, topIcons, actions } = flow;
+  const landscape = useOrientation() === 'landscape';
 
-export function SourcesView({ flow, orientation }: SourcesViewProps) {
-  const { state, sourceCountLabel, recentCount, sources, recents, actions } = flow;
-
-  const sourcesBlock = (
-    <View style={orientation === 'landscape' ? styles.sourcesColLandscape : styles.sourcesColPortrait}>
-      <CommandHeading sigil="//" text="SOURCES" suffix={sourceCountLabel} />
-      {sources.map((s) => (
-        <SourceChip key={s.domain} domain={s.domain} status={s.status} onPress={() => actions.removeSource(s.domain)} />
-      ))}
-      <View style={styles.addRow}>
-        <Input
-          value={state.input}
-          onChangeText={actions.setInput}
-          onSubmitEditing={actions.addSourceFromInput}
-          placeholder="paste retailer url"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          accessibilityLabel="Retailer URL"
-          style={styles.urlInput}
-        />
-        <Button variant="ghost" onPress={actions.addSourceFromInput} style={styles.addButton}>
-          + ADD
-        </Button>
-      </View>
-      <Text style={styles.hint}>TAP A SOURCE TO REMOVE IT</Text>
-    </View>
-  );
-
-  const queryBlock = (
-    <View style={styles.queryCol}>
-      <CommandHeading sigil="//" text="QUERY" />
-      <View style={styles.queryBox}>
-        <Input
-          value={state.query}
-          onChangeText={actions.setQuery}
-          placeholder="input desired item"
-          accessibilityLabel="Search query"
-          style={styles.queryInput}
-        />
-      </View>
-    </View>
-  );
-
-  const recentBlock = (
-    <View style={styles.recentCol}>
-      <CommandHeading sigil="//" text="RECENT" suffix={recentCount} />
-      {recents.map((r) => (
-        <Pressable key={r.id} style={styles.recentRow} onPress={() => actions.chooseRecent(r)}>
-          <Text style={styles.recentName} numberOfLines={1}>
-            {r.name}
-          </Text>
-          <Text style={styles.recentMeta}>{r.meta}</Text>
-        </Pressable>
-      ))}
-      <Text style={styles.hint}>TAP A PAST SEARCH TO REUSE IT</Text>
-    </View>
-  );
-
-  if (orientation === 'landscape') {
-    return (
-      <View style={styles.landscapeRow}>
-        {sourcesBlock}
-        <View style={styles.landscapeMain}>
-          {queryBlock}
-          {recentBlock}
-        </View>
-      </View>
-    );
-  }
+  const staged = new Map(session.sources.map((source) => [source.domain, source]));
+  const suggested = new Set(suggestions.map((s) => s.domain));
+  // Anything added by hand or from a preset stays visible whatever the query suggests.
+  const extras = session.sources
+    .filter((source) => !suggested.has(source.domain))
+    .map((source) => ({ domain: source.domain, reason: source.status === 'KNOWN' ? 'Page layout already known' : 'Added by you' }));
+  const hidden = allSuggestions ? 0 : Math.max(0, suggestions.length - 3);
+  const list = [...(allSuggestions ? suggestions : suggestions.slice(0, 3)), ...extras];
 
   return (
-    <View style={styles.portraitCol}>
-      {queryBlock}
-      {recentBlock}
-      {sourcesBlock}
-    </View>
+    <Screen
+      back={{ label: 'Searches', onPress: () => actions.go('home') }}
+      icons={topIcons}
+      aside={<Heading title="What are you pricing?" step={1} landscape={landscape} />}
+      primary={{
+        label: 'Start scan',
+        onPress: actions.startScan,
+        disabled: !query.trim() || session.sources.length === 0,
+      }}>
+      <Input
+        big
+        value={query}
+        onChangeText={actions.setQuery}
+        placeholder="Product name"
+        accessibilityLabel="Product name"
+        autoFocus={!query}
+        returnKeyType="done"
+      />
+
+      <View>
+        {list.length > 0 && (
+          <>
+            <View style={styles.label}>
+              <Label>SUGGESTED SITES</Label>
+            </View>
+            <Hairline />
+          </>
+        )}
+        {list.map(({ domain, reason }) => {
+          const on = staged.has(domain);
+          return (
+            <Row
+              key={domain}
+              title={domain}
+              subtitle={reason}
+              onPress={() => actions.toggleSource(domain)}
+              accessibilityLabel={`${domain}, ${on ? 'added' : 'not added'}`}
+              right={<Check on={on} offGlyph="plus" />}
+            />
+          );
+        })}
+
+        {ownUrl !== null && (
+          <View style={styles.ownUrl}>
+            <Input
+              mono
+              label="RETAILER URL"
+              value={ownUrl}
+              onChangeText={actions.setOwnUrl}
+              onSubmitEditing={actions.addOwnUrl}
+              placeholder="shop.co.za"
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              accessibilityLabel="Retailer URL"
+              style={styles.flex}
+            />
+            <Button variant="ghost" label="Add" onPress={actions.addOwnUrl} disabled={!ownUrl.trim()} />
+          </View>
+        )}
+
+        <View style={styles.footer}>
+          {hidden > 0 ? (
+            <Pressable onPress={actions.showAllSuggestions} hitSlop={12} accessibilityRole="button">
+              <Label color={SiftColors.textDim}>{`SHOW ${hidden} MORE`}</Label>
+            </Pressable>
+          ) : (
+            <View />
+          )}
+          <View style={styles.footerRight}>
+            <Pressable onPress={() => actions.go('presets')} hitSlop={12} accessibilityRole="button">
+              <Label>PRESETS</Label>
+            </Pressable>
+            {ownUrl === null && (
+              <Pressable onPress={() => actions.setOwnUrl('')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Add your own retailer URL">
+                <Label>+ OWN URL</Label>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  landscapeRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', minHeight: 0 },
-  landscapeMain: { flex: 1, minWidth: 260, padding: SiftSpacing.space4, gap: SiftSpacing.space4 },
-  portraitCol: { gap: SiftSpacing.space4, padding: SiftSpacing.space4 },
-  sourcesColLandscape: {
-    flexBasis: 320,
-    flexGrow: 0,
-    flexShrink: 1,
-    minWidth: 220,
-    maxWidth: 320,
-    padding: SiftSpacing.space4,
-    gap: SiftSpacing.space2,
-    borderRightWidth: 1,
-    borderRightColor: SiftColors.graphite,
-  },
-  sourcesColPortrait: { gap: SiftSpacing.space2 },
-  queryCol: { gap: SiftSpacing.space2 },
-  queryBox: { borderWidth: 1, borderColor: SiftColors.graphite },
-  queryInput: {
-    height: 44,
-    borderWidth: 0,
-    borderBottomWidth: 1,
-    fontFamily: SiftType.body.fontFamily,
-    fontSize: 20,
-    paddingHorizontal: 12,
-  },
-  recentCol: { gap: SiftSpacing.space2 },
-  recentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    height: 26,
-    paddingHorizontal: 8,
-    backgroundColor: SiftColors.carbon,
-    borderLeftWidth: 2,
-    borderLeftColor: SiftColors.graphite,
-  },
-  recentName: { ...SiftType.body, fontSize: 13, color: SiftColors.bone, flexShrink: 1 },
-  recentMeta: { ...SiftType.annot, color: SiftColors.boneDim },
-  addRow: { flexDirection: 'row', marginTop: SiftSpacing.space1 },
-  urlInput: {
-    flex: 1,
-    height: 34,
-    minWidth: 0,
-    borderRightWidth: 0,
-    fontFamily: SiftType.body.fontFamily,
-    fontSize: 14,
-    paddingHorizontal: SiftSpacing.space3,
-  },
-  addButton: { minWidth: 0, height: 44, paddingHorizontal: 12 },
-  hint: { ...SiftType.annot, color: SiftColors.boneDim },
+  flex: { flex: 1 },
+  label: { paddingBottom: SiftSpacing.s2 },
+  ownUrl: { flexDirection: 'row', alignItems: 'stretch', gap: SiftSpacing.s2, paddingTop: SiftSpacing.s3 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: SiftSpacing.s4 },
+  footerRight: { flexDirection: 'row', gap: SiftSpacing.s5 },
 });

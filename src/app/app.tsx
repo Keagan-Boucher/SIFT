@@ -1,255 +1,48 @@
 import { Redirect } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import type { ComponentType } from 'react';
 
-import { ActionBar } from '@/components/sift/ActionBar';
-import { AccountPopup } from '@/components/sift/AccountPopup';
-import { AlertLogPopup } from '@/components/sift/AlertLogPopup';
-import { DiscardPopup } from '@/components/sift/DiscardPopup';
-import { ListingDetailPopup } from '@/components/sift/ListingDetailPopup';
-import { NoteBanner } from '@/components/sift/NoteBanner';
-import { AccountButton, Rail } from '@/components/sift/Rail';
-import { RetryUrlPopup } from '@/components/sift/RetryUrlPopup';
-import { SavedPill, SavedStrip } from '@/components/sift/SavedStrip';
+import { AccountView } from '@/components/sift/views/AccountView';
+import { AlertsView } from '@/components/sift/views/AlertsView';
+import { CompareView } from '@/components/sift/views/CompareView';
 import { ConfirmView } from '@/components/sift/views/ConfirmView';
-import { DashboardView } from '@/components/sift/views/DashboardView';
+import { FixView } from '@/components/sift/views/FixView';
+import { HomeView } from '@/components/sift/views/HomeView';
 import { LiveView } from '@/components/sift/views/LiveView';
-import { ResultsView } from '@/components/sift/views/ResultsView';
 import { PresetsView } from '@/components/sift/views/PresetsView';
 import { SavedView } from '@/components/sift/views/SavedView';
 import { SourcesView } from '@/components/sift/views/SourcesView';
-import { SiftColors, SiftSpacing } from '@/constants/sift-theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useOrientationPolicy } from '@/hooks/use-orientation-policy';
-import { useOrientation } from '@/hooks/use-orientation';
-import { useSiftFlow } from '@/hooks/use-sift-flow';
+import { useSiftFlow, type Screen, type SiftFlow } from '@/hooks/use-sift-flow';
 
-const VIEW_BY_SCREEN = {
+const VIEWS: Record<Screen, ComponentType<{ flow: SiftFlow }>> = {
+  home: HomeView,
   sources: SourcesView,
+  presets: PresetsView,
   live: LiveView,
   confirm: ConfirmView,
-  results: ResultsView,
-  dashboard: DashboardView,
+  fix: FixView,
+  compare: CompareView,
+  alerts: AlertsView,
   saved: SavedView,
-  presets: PresetsView,
+  account: AccountView,
 };
 
+/**
+ * The app shell. Each view owns its Screen (top bar, body, action bar) and
+ * decides its own landscape split; this only picks which one is showing.
+ */
 export default function SiftAppScreen() {
   useOrientationPolicy();
-  const orientation = useOrientation();
   const { phase } = useAuth();
   const flow = useSiftFlow();
-  const { state, railName, railConnection, statusLine, nav, hasAlerts, alertCount, archiveCount, archiveLabeled, hasLinks, linksCount, stagedLinks, listing, showListing, hasDrops, notes: activeNotes, sources, showArchive, showAccount, showLinks, confirmDomain, mode, isGuest, accountEmail, actions } = flow;
 
-  const ActiveView = VIEW_BY_SCREEN[state.screen];
+  // Signing out from the account screen drops straight back to the gate.
+  if (phase === 'signedOut') return <Redirect href="/auth" />;
 
-  // Signing out from the account panel drops straight back to the gate.
-  const signedOut = phase === 'signedOut';
-
-  const notes = activeNotes.map((n) => (
-    <NoteBanner
-      key={n.id}
-      kind={n.kind}
-      heading={n.heading}
-      body={n.body}
-      retryable={n.retryable}
-      onRetry={n.domain ? () => actions.openRetry(n.domain as string) : undefined}
-      onDismiss={() => actions.dismissNote(n.id)}
-    />
-  ));
-
-  // Any panel is dismissed by tapping the screen behind it. Only one of the
-  // account, archive and links panels can be open at once, but a listing or a
-  // prompt can sit alongside one, so every open panel is closed together.
-  const openPopups = [
-    showListing && listing ? actions.closeListing : null,
-    showAccount ? actions.toggleAccount : null,
-    showArchive ? actions.toggleArchive : null,
-    showLinks ? actions.toggleLinks : null,
-    state.showDiscard ? actions.closeDiscard : null,
-    state.retryDomain ? actions.closeRetry : null,
-  ].filter((close): close is () => void => close !== null);
-
-  const popups = (
-    <>
-      {openPopups.length > 0 && (
-        <Pressable
-          style={[StyleSheet.absoluteFill, styles.backdrop]}
-          onPress={() => openPopups.forEach((close) => close())}
-          accessibilityLabel="Close the open panel"
-        />
-      )}
-      {showListing && listing && (
-        <View style={[styles.popupAnchor, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <ListingDetailPopup listing={listing} onClose={actions.closeListing} />
-        </View>
-      )}
-      {showAccount && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <AccountPopup
-            mode={mode}
-            isGuest={isGuest}
-            email={accountEmail}
-            onClose={actions.toggleAccount}
-          />
-        </View>
-      )}
-      {showArchive && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <AlertLogPopup entries={archiveLabeled} count={String(archiveCount).padStart(2, '0')} onClose={actions.toggleArchive} />
-        </View>
-      )}
-      {showLinks && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <AlertLogPopup
-            entries={stagedLinks}
-            count={String(linksCount).padStart(2, '0')}
-            onClose={actions.toggleLinks}
-            title="LINKS"
-            emptyText="No links staged. Paste a search URL from a FAILED source's alert to add one."
-          />
-        </View>
-      )}
-      {state.showDiscard && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <DiscardPopup domain={confirmDomain} onDiscard={actions.discardConfirmSource} onClose={actions.closeDiscard} />
-        </View>
-      )}
-      {state.retryDomain && (
-        <View style={[styles.popupAnchor, styles.popupAnchorAbove, orientation === 'landscape' ? styles.popupAnchorLandscape : styles.popupAnchorPortrait]}>
-          <RetryUrlPopup
-            domain={state.retryDomain}
-            onSubmit={(url) => actions.submitRetryUrl(state.retryDomain as string, url)}
-            onClose={actions.closeRetry}
-          />
-        </View>
-      )}
-    </>
-  );
-
-  const actionBar = (
-    <ActionBar
-      secondaryLabel={nav.secondaryLabel}
-      onSecondary={nav.secondaryAction}
-      primaryLabel={nav.primaryLabel}
-      onPrimary={nav.primaryAction}
-      primaryDisabled={nav.primaryDisabled}
-      alertCount={alertCount}
-      hasAlerts={hasAlerts}
-      onToggleAlerts={actions.toggleArchive}
-      linksCount={linksCount}
-      hasLinks={hasLinks}
-      onToggleLinks={actions.toggleLinks}
-      statusLine={statusLine}
-    />
-  );
-
-  const scrollableContent = (
-    <ScrollView
-      style={styles.activeScroll}
-      contentContainerStyle={styles.activeScrollContent}
-      showsVerticalScrollIndicator={false}>
-      {notes.length > 0 && <View style={styles.notesCol}>{notes}</View>}
-      <View style={styles.activeArea}>
-        <ActiveView flow={flow} orientation={orientation} />
-      </View>
-    </ScrollView>
-  );
-
-  if (signedOut) {
-    return <Redirect href="/auth" />;
-  }
-
-  if (orientation === 'landscape') {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.landscapeBody}>
-          <Rail
-            screenName={railName}
-            sourceCount={sources.length}
-            onPressSession={actions.toggleAccount}
-          />
-          <SavedStrip
-            active={state.screen === 'saved'}
-            presetsActive={state.screen === 'presets'}
-            hasDrops={hasDrops}
-            onPress={actions.openSaved}
-            onPressPresets={actions.openPresets}
-          />
-          <View style={styles.contentCol}>
-            {scrollableContent}
-            {popups}
-          </View>
-        </View>
-        {actionBar}
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.portraitBody}>
-        <View style={styles.portraitHeaderBar}>
-          <Text style={styles.portraitTitle}>{railName}</Text>
-          <View style={styles.portraitHeaderRight}>
-            <View style={[styles.connectionPill, railConnection === 'LIVE' && styles.connectionPillLive]}>
-              <Text style={[styles.connectionPillText, railConnection === 'LIVE' && styles.connectionPillTextLive]}>{railConnection}</Text>
-            </View>
-            <SavedPill
-              active={state.screen === 'saved'}
-              presetsActive={state.screen === 'presets'}
-              hasDrops={hasDrops}
-              onPress={actions.openSaved}
-              onPressPresets={actions.openPresets}
-            />
-            <AccountButton onPress={actions.toggleAccount} />
-          </View>
-        </View>
-        <View style={styles.contentCol}>
-          {scrollableContent}
-          {popups}
-        </View>
-      </View>
-      {actionBar}
-    </SafeAreaView>
-  );
+  const { screen, session } = flow;
+  // A finished scan with nothing priced is the no-results screen, which lives with compare.
+  const nothingCameBack = screen === 'live' && session.complete && session.tiles.length === 0 && session.sources.length > 0;
+  const ActiveView = nothingCameBack ? CompareView : VIEWS[screen];
+  return <ActiveView flow={flow} />;
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: SiftColors.void },
-  landscapeBody: { flex: 1, flexDirection: 'row', minHeight: 0, minWidth: 0 },
-  contentCol: { flex: 1, minHeight: 0, minWidth: 0, position: 'relative' },
-  notesCol: { gap: 1 },
-  activeScroll: { flex: 1 },
-  activeScrollContent: { flexGrow: 1, backgroundColor: SiftColors.void },
-  activeArea: { flex: 1, minHeight: 0 },
-  portraitBody: { flex: 1, minHeight: 0 },
-  portraitHeaderBar: {
-    height: 48,
-    backgroundColor: SiftColors.carbon,
-    borderBottomWidth: 1,
-    borderBottomColor: SiftColors.graphite,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SiftSpacing.space4,
-  },
-  portraitTitle: {
-    fontFamily: 'BigShouldersDisplay_700Bold',
-    fontSize: 20,
-    lineHeight: 20,
-    letterSpacing: -0.2,
-    textTransform: 'uppercase',
-    color: SiftColors.bone,
-  },
-  portraitHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  connectionPill: { paddingVertical: 3, paddingHorizontal: 6 },
-  connectionPillLive: { backgroundColor: SiftColors.mint },
-  connectionPillText: { fontFamily: 'JetBrainsMono_700Bold', fontSize: 11, letterSpacing: 0.88, color: SiftColors.boneDim },
-  connectionPillTextLive: { color: SiftColors.void },
-  backdrop: { zIndex: 4 },
-  popupAnchor: { position: 'absolute', zIndex: 5, justifyContent: 'flex-end', alignItems: 'flex-end' },
-  popupAnchorAbove: { zIndex: 6 },
-  popupAnchorLandscape: { top: 12, right: 12, bottom: 12 },
-  popupAnchorPortrait: { top: 12, left: 12, right: 12, bottom: 12 },
-});

@@ -1,90 +1,59 @@
 import { create } from 'zustand';
 
-import type { NoteView } from '@/types/view';
-
-export type Screen = 'sources' | 'live' | 'confirm' | 'results' | 'dashboard' | 'saved' | 'presets';
-
-/** A note the user dismissed, kept for the session so it can be read back. */
-export interface ArchiveEntry extends NoteView {
-  stamp: string;
-}
+export type Screen =
+  | 'home'
+  | 'sources'
+  | 'presets'
+  | 'live'
+  | 'confirm'
+  | 'fix'
+  | 'compare'
+  | 'alerts'
+  | 'saved'
+  | 'account';
 
 /**
- * UI state only. Sources, listings, saved searches, notes and history all live
- * in Firestore and reach the screens through the session hooks, so nothing the
+ * UI state only. Sources, listings, saved searches and alerts live in
+ * Firestore and reach the screens through the session hook, so nothing the
  * backend owns is duplicated here.
  */
-interface FlowStore {
+interface FlowState {
   screen: Screen;
-  /** The domain being typed into the add-source field. */
-  input: string;
   query: string;
-  showArchive: boolean;
-  showAccount: boolean;
-  showLinks: boolean;
-  /** Domain of the FAILED source whose "paste a search URL" popup is open, if any. */
-  retryDomain: string | null;
-  /** True while the confirm step's discard prompt is open. */
-  showDiscard: boolean;
-  /** Index of the candidate selected in the confirm step. */
-  chosen: number;
-  /** Index of the tile whose detail popup is open. */
-  selected: number | null;
-  /** Id of the preset category expanded on the presets screen, if any. */
+  /** The own-URL field on the new search screen. Null while it is closed. */
+  ownUrl: string | null;
+  /** "Show N more" on the suggested sites. */
+  allSuggestions: boolean;
+  /** Once the user has added or removed a site, suggestions stop replacing their picks. */
+  sourcesTouched: boolean;
+  /** The source whose search URL is being pasted, and what has been typed so far. */
+  fixDomain: string | null;
+  fixUrl: string;
+  /** Candidate picked on the confirm screen, if any. */
+  chosen: number | null;
   presetCategory: string | null;
-  dismissed: ArchiveEntry[];
+  /** Alert ids the user has seen or acted on. */
+  read: string[];
+}
 
-  setScreen: (screen: Screen) => void;
-  setInput: (input: string) => void;
-  setQuery: (query: string) => void;
-  toggleArchive: () => void;
-  toggleAccount: () => void;
-  toggleLinks: () => void;
-  openRetry: (domain: string) => void;
-  closeRetry: () => void;
-  openDiscard: () => void;
-  closeDiscard: () => void;
-  choose: (index: number) => void;
-  select: (index: number | null) => void;
-  openCategory: (id: string | null) => void;
-  archive: (note: NoteView, stamp: string) => void;
-  clearArchive: () => void;
+interface FlowStore extends FlowState {
+  patch: (next: Partial<FlowState>) => void;
+  /** Tapping the open category closes it again, so only one is ever open. */
+  openCategory: (id: string) => void;
 }
 
 export const useFlowStore = create<FlowStore>((set) => ({
-  screen: 'sources',
-  input: '',
+  screen: 'home',
   query: '',
-  showArchive: false,
-  showAccount: false,
-  showLinks: false,
-  retryDomain: null,
-  showDiscard: false,
-  chosen: 0,
-  selected: null,
+  ownUrl: null,
+  allSuggestions: false,
+  sourcesTouched: false,
+  fixDomain: null,
+  fixUrl: '',
+  chosen: null,
   presetCategory: null,
-  dismissed: [],
+  read: [],
 
-  setScreen: (screen) => set({ screen }),
-  setInput: (input) => set({ input }),
-  setQuery: (query) => set({ query }),
-  // All four share a corner, so opening one closes the others.
-  toggleArchive: () => set((s) => ({ showArchive: !s.showArchive, showAccount: false, showLinks: false, retryDomain: null })),
-  toggleAccount: () => set((s) => ({ showAccount: !s.showAccount, showArchive: false, showLinks: false, retryDomain: null })),
-  toggleLinks: () => set((s) => ({ showLinks: !s.showLinks, showArchive: false, showAccount: false, retryDomain: null })),
-  openRetry: (domain) => set({ retryDomain: domain, showArchive: false, showAccount: false, showLinks: false }),
-  closeRetry: () => set({ retryDomain: null }),
-  openDiscard: () => set({ showDiscard: true, showArchive: false, showAccount: false, showLinks: false, retryDomain: null }),
-  closeDiscard: () => set({ showDiscard: false }),
-  choose: (chosen) => set({ chosen }),
-  select: (selected) => set({ selected }),
-  // Tapping the open category closes it again, so the menu collapses in place.
+  patch: (next) => set(next),
   openCategory: (id) => set((s) => ({ presetCategory: s.presetCategory === id ? null : id })),
-  archive: (note, stamp) =>
-    set((s) =>
-      s.dismissed.some((entry) => entry.id === note.id)
-        ? s
-        : { dismissed: [{ ...note, stamp }, ...s.dismissed] },
-    ),
-  clearArchive: () => set({ dismissed: [] }),
 }));

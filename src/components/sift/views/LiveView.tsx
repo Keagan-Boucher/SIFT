@@ -1,90 +1,111 @@
-import Constants from 'expo-constants';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { CommandHeading } from '@/components/sift/CommandHeading';
-import { CornerBrackets } from '@/components/sift/CornerBrackets';
-import { PlusGrid } from '@/components/sift/PlusGrid';
-import { ResultTile } from '@/components/sift/ResultTile';
-import { RunningDots } from '@/components/sift/RunningDots';
-import { ScanSweep } from '@/components/sift/ScanSweep';
-import { SiftColors, SiftSpacing, SiftType } from '@/constants/sift-theme';
-import type { Orientation } from '@/hooks/use-orientation';
+import { Screen } from '@/components/ui/Screen';
+import { Banner, Heading, Meter, Row, Stat, Tag } from '@/components/ui/kit';
+import { SiftColors, SiftType } from '@/constants/sift-theme';
 import type { SiftFlow } from '@/hooks/use-sift-flow';
+import { useOrientation } from '@/hooks/use-orientation';
+import { fmtPrice } from '@/lib/format-price';
+import { ERROR_COPY } from '@/lib/map-to-view';
+import type { SourceView } from '@/types/view';
 
-interface LiveViewProps {
-  flow: SiftFlow;
-  orientation: Orientation;
+/** A source that needs the user: ember dot, the reason, and its fix as an outlined tag. */
+export function FailedRow({ source, onFix, last }: { source: SourceView; onFix: (source: SourceView) => void; last?: boolean }) {
+  const copy = source.kind ? ERROR_COPY[source.kind] : null;
+  return (
+    <Row
+      dot={SiftColors.ember}
+      title={source.domain}
+      titleColor={SiftColors.textDim}
+      subtitle={copy?.reason ?? 'No price found'}
+      subtitleColor={copy ? SiftColors.ember : SiftColors.textMute}
+      last={last}
+      right={copy ? <Tag label={copy.fix} color={SiftColors.ember} onPress={() => onFix(source)} /> : null}
+    />
+  );
 }
 
-export function LiveView({ flow }: LiveViewProps) {
-  const { state, resolved, running, sources, tiles } = flow;
-  const heading = running ? 'SEARCH_RUNNING' : 'SEARCH_COMPLETE';
-  const suffix = `${resolved}/${sources.length}`;
-  // Placeholders only mean anything while sources are still reporting in.
-  const slotCount = running ? Math.max(0, 4 - tiles.length) : 0;
+/** 04 and 08 Scanning. Rows fill in one at a time from the listener; failures are row state, never a modal. */
+export function LiveView({ flow }: { flow: SiftFlow }) {
+  const { query, session, needs, topIcons, actions } = flow;
+  const landscape = useOrientation() === 'landscape';
+  const { sources, tiles, running } = session;
 
-  // What the pipeline is doing right now, so a slow search reads as busy
-  // rather than hung. Locating still means finding the right page; once every
-  // source has one, the wait is for prices to come off it.
-  const locating = sources.filter((s) => s.status === 'PENDING').length;
-  const activity = !running
-    ? ''
-    : locating > 0
-      ? `LOCATING PRODUCT PAGES · ${sources.length - locating}/${sources.length} FOUND`
-      : `PULLING PRICES OFF THE PAGE · ${resolved}/${sources.length} DONE`;
+  const priced = tiles.filter((tile) => !tile.issue);
+  const lowest = priced.length > 0 ? Math.min(...priced.map((tile) => tile.value)) : null;
+  const firstWeak = tiles.find((tile) => tile.issue);
+  const needCount = needs.length;
+
+  const rows = sources.map((source, index) => {
+    const last = index === sources.length - 1;
+    const tile = tiles.find((t) => t.domain === source.domain);
+    const need = needs.find((n) => n.domain === source.domain);
+    if (need) return <FailedRow key={source.domain} source={need} onFix={actions.fix} last={last} />;
+    if (tile) {
+      return (
+        <Row
+          key={source.domain}
+          title={source.domain}
+          subtitle={tile.title}
+          last={last}
+          right={<Text style={[styles.price, { color: tile.lowest ? SiftColors.mint : SiftColors.text }]}>{tile.price}</Text>}
+        />
+      );
+    }
+    // Unresolved rows keep the two-line shape so the column does not go ragged.
+    const working = source.status === 'RESOLVING' || source.status === 'RESOLVED';
+    return (
+      <Row
+        key={source.domain}
+        title={source.domain}
+        titleColor={SiftColors.textMute}
+        subtitle={!running && session.complete ? 'No price found' : working ? 'Looking for the listing' : 'Not started'}
+        last={last}
+        right={<Meter value={source.status === 'RESOLVED' ? 0.9 : working ? 0.6 : 0.05} width={90} />}
+      />
+    );
+  });
+
+  const stats = (
+    <View>
+      <Stat label="REPORTED" value={`${tiles.length} / ${sources.length}`} />
+      {needCount > 0 ? (
+        <Stat label="NEEDS YOU" value={String(needCount)} color={SiftColors.ember} />
+      ) : lowest !== null ? (
+        <Stat label="LOWEST" value={fmtPrice(lowest)} color={SiftColors.mint} />
+      ) : null}
+    </View>
+  );
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.headingRow}>
-        <View style={styles.headingLeft}>
-          <CommandHeading sigil="//" text={heading} suffix={suffix} />
-          {running && <RunningDots />}
-        </View>
-        <Text style={styles.listenerNote}>V {Constants.expoConfig?.version ?? '1.0.0'}</Text>
-      </View>
-
-      {running && <Text style={styles.activity}>{activity}</Text>}
-
-      <View style={styles.tileRow}>
-        {running && <ScanSweep />}
-        {tiles.map((tile, i) => (
-          <CornerBrackets key={tile.retailer} active={state.selected === i}>
-            <Pressable onPress={() => flow.actions.selectTile(i)} style={styles.tileCol}>
-              <ResultTile title={tile.title} tier={tile.tier} confidence={tile.confidence} price={tile.price} retailer={tile.retailer} count={tile.count} lowest={tile.lowest} />
-              <View style={styles.tileFooter}>
-                <Text style={styles.tileDomain} numberOfLines={1}>
-                  {tile.domain}
-                </Text>
-                {tile.issue && <Text style={styles.tileIssue}>!REVIEW</Text>}
-              </View>
-            </Pressable>
-          </CornerBrackets>
-        ))}
-        {Array.from({ length: slotCount }).map((_, i) => (
-          <View key={i} style={styles.slotCol}>
-            <View style={styles.slot}>
-              <PlusGrid cell={20} />
-            </View>
-            <Text style={styles.slotLabel}>AWAITING</Text>
-          </View>
-        ))}
-      </View>
-    </View>
+    <Screen
+      back={landscape ? undefined : { label: 'Searches', onPress: () => actions.go('home') }}
+      icons={topIcons}
+      aside={<Heading title="Scanning" sub={query} step={2} landscape={landscape} />}
+      asideFooter={stats}
+      ghost={{ label: 'Leave', onPress: () => actions.go('home') }}
+      primary={
+        firstWeak
+          ? { label: 'Confirm match', arrow: true, onPress: () => actions.openConfirm(firstWeak.domain) }
+          : {
+              label: `Compare ${priced.length} ${priced.length === 1 ? 'result' : 'results'}`,
+              arrow: true,
+              onPress: () => actions.go('compare'),
+              disabled: priced.length === 0,
+            }
+      }>
+      {session.error && <Text style={[SiftType.small, { color: SiftColors.ember }]}>{session.error}</Text>}
+      {needCount > 0 && (
+        <Banner
+          text={`${needCount} ${needCount === 1 ? 'source needs' : 'sources need'} you before the compare`}
+          onPress={() => actions.fix(needs[0])}
+        />
+      )}
+      <View>{rows}</View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: SiftSpacing.space4, gap: SiftSpacing.space3 },
-  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SiftSpacing.space4 },
-  listenerNote: { ...SiftType.annot, color: SiftColors.boneDim },
-  headingLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  activity: { ...SiftType.annot, color: SiftColors.bone, textTransform: 'uppercase' },
-  tileRow: { position: 'relative', flexDirection: 'row', flexWrap: 'wrap', gap: SiftSpacing.space3 },
-  tileCol: { gap: 5 },
-  tileFooter: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, width: 160 },
-  tileDomain: { ...SiftType.annot, color: SiftColors.bone, flexShrink: 1 },
-  tileIssue: { ...SiftType.annot, color: SiftColors.ember },
-  slotCol: { gap: 5 },
-  slot: { position: 'relative', width: 160, height: 96, borderWidth: 1, borderColor: SiftColors.graphite },
-  slotLabel: { ...SiftType.annot, color: SiftColors.boneDim, width: 160 },
+  price: { ...SiftType.price },
 });

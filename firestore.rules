@@ -15,16 +15,18 @@ service cloud.firestore {
       allow read, write: if owns(userId);
     }
 
-    // The client creates a search and then subscribes to it. Everything after
-    // creation is written by the pipeline through the admin SDK, so the client
-    // may only delete its own searches, never edit one mid-run.
+    // The client creates a search and then subscribes to it. The pipeline owns
+    // everything about the run itself; the client may only move its own resume
+    // pointer (step) and the lowest price it has seen, which back the home screen.
     match /searches/{searchId} {
       allow read, delete: if owns(resource.data.userId);
       allow create: if owns(request.resource.data.userId)
                     && request.resource.data.query is string
                     && request.resource.data.query.size() > 0
                     && request.resource.data.status == 'pending';
-      allow update: if false;
+      allow update: if owns(resource.data.userId)
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['step', 'stepUpdatedAt', 'lowestPrice']);
     }
 
     // Listings are readable by the owner of their parent search only. Writes

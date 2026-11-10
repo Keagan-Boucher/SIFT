@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   confirmMatch,
@@ -6,41 +6,23 @@ import {
   recheckSavedSearch,
   saveSearch,
   subscribeToListings,
-  subscribeToPriceHistory,
   subscribeToRecentSearches,
   subscribeToSavedSearches,
   subscribeToSearch,
+  updateSearchProgress,
 } from '@/lib/searches';
-import {
-  toCandidateViews,
-  toConfirmNotes,
-  toDropNote,
-  toSavedItemView,
-  toSourceNotes,
-  toSourceView,
-  toTileViews,
-} from '@/lib/map-to-view';
+import { toAlerts, toCandidateViews, toSavedItemView, toSearchSummary, toSourceView, toTileViews } from '@/lib/map-to-view';
 import { isDomainKnown } from '@/lib/registry';
 import type { ListingDoc, SavedSearchDoc, SearchDoc } from '@/types/firestore';
-import type { NoteView, RecentView, SourceView } from '@/types/view';
+import type { SearchSummary, SourceView, Step } from '@/types/view';
 import type { SiftSession } from './types';
 
-/** Sources the user has staged but not yet searched with. */
 const NO_SOURCES: SourceView[] = [];
-
-function recentLabel(search: SearchDoc): RecentView {
-  const resolved = search.resolvedCount ?? 0;
-  const meta =
-    search.status === 'complete'
-      ? `${resolved} PRICES · ${search.sources.length} SOURCES`
-      : search.status.toUpperCase();
-  return { id: search.id, name: search.query, meta, sources: search.sources.map((source) => source.domain) };
-}
 
 /**
  * The live session. The client writes a search document and subscribes; the
  * Cloud Function trigger resolves, extracts and streams state back onto that
- * document, which is what makes tiles appear one by one rather than in a batch.
+ * document, which is what makes rows fill in one at a time.
  */
 export function useLiveSession(userId: string | null): SiftSession {
   const [stagedSources, setStagedSources] = useState<SourceView[]>(NO_SOURCES);
@@ -49,14 +31,12 @@ export function useLiveSession(userId: string | null): SiftSession {
   const [listings, setListings] = useState<ListingDoc[]>([]);
   const [savedDocs, setSavedDocs] = useState<SavedSearchDoc[]>([]);
   const [recentDocs, setRecentDocs] = useState<SearchDoc[]>([]);
-  const [historyFor, setHistoryFor] = useState<{ savedSearchId: string; points: number[] } | null>(null);
   const [confirmDomain, setConfirmDomain] = useState<string | null>(null);
   /** Domains the user delisted from this run. The listener keeps sending them, so they are filtered on the way out. */
   const [discarded, setDiscarded] = useState<string[]>([]);
-  const [activeQuery, setActiveQuery] = useState('');
+  /** Domains whose automatic pick the user accepted. Nothing changes server-side, so it is remembered here. */
+  const [accepted, setAccepted] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  /** Search URLs pasted for domains resolution could not work out on its own, keyed by domain. */
-  const [userSearchUrls, setUserSearchUrls] = useState<Record<string, string>>({});
 
   const fail = useCallback((cause: unknown) => {
     setError(cause instanceof Error ? cause.message : String(cause));
@@ -82,44 +62,46 @@ export function useLiveSession(userId: string | null): SiftSession {
     };
   }, [searchId, fail]);
 
-  // History follows whichever watched search matches the query on screen, so the
-  // dashboard bars show that product's own past rather than a generic series.
-  const watchedId = (savedDocs.find((saved) => saved.query === activeQuery) ?? savedDocs[0])?.id ?? null;
-
-  useEffect(() => {
-    if (!watchedId) return;
-    return subscribeToPriceHistory(
-      watchedId,
-      (points) => setHistoryFor({ savedSearchId: watchedId, points: points.map((point) => point.price) }),
-      fail,
-    );
-  }, [watchedId, fail]);
-
-  // Guarded by id so a stale series never renders under a different product.
-  const history = useMemo(
-    () => (historyFor?.savedSearchId === watchedId ? historyFor.points : []),
-    [historyFor, watchedId],
+  // Delisted sources are gone from every read of the run: rows, alerts, saving.
+  const shown = useMemo(
+    () =>
+      listings
+        .filter((listing) => !discarded.includes(listing.retailerDomain))
+        .map((listing) => (accepted.includes(listing.retailerDomain) ? { ...listing, needsConfirmation: false } : listing)),
+    [listings, discarded, accepted],
   );
 
-  /** Shared by a normal run and a Method D retry, which needs to pass URLs before the state update carrying them has landed. */
+  // The lowest price so far rides on the search document, so the home screen's
+  // resume card and history rows need no listings query of their own. Losing
+  // this write only costs that figure on the home screen, so it never errors.
+  const lowest = shown.length > 0 ? Math.min(...shown.map((listing) => listing.price)) : null;
+  const written = useRef<string | null>(null);
+  useEffect(() => {
+    if (!searchId || lowest === null || written.current === `${searchId}:${lowest}`) return;
+    written.current = `${searchId}:${lowest}`;
+    updateSearchProgress(searchId, { lowestPrice: lowest }).catch(() => {});
+  }, [searchId, lowest]);
+
+  const setStep = useCallback(
+    (step: Step) => {
+      if (searchId) updateSearchProgress(searchId, { step }).catch(() => {});
+    },
+    [searchId],
+  );
+
   const startSearch = useCallback(
     (query: string, urls: Record<string, string>) => {
       if (!userId || stagedSources.length === 0) return;
-      setActiveQuery(query);
       setError(null);
       setConfirmDomain(null);
       setDiscarded([]);
+      setAccepted([]);
       setListings([]);
       setSearch(null);
-
-      // Consumed on use: once a run is fired with them, the LINKS panel should
-      // empty out rather than keep offering the same URLs for the next retry.
-      setUserSearchUrls({});
-
       createSearch(
         userId,
         query,
-        stagedSources.filter((source) => source.status !== 'BLOCKED').map((source) => source.domain),
+        stagedSources.map((source) => source.domain),
         urls,
       )
         .then(setSearchId)
@@ -128,27 +110,34 @@ export function useLiveSession(userId: string | null): SiftSession {
     [userId, stagedSources, fail],
   );
 
-  const runSearch = useCallback((query: string) => startSearch(query, userSearchUrls), [startSearch, userSearchUrls]);
+  // Pasted URLs ride along on every re-run of this search, so fixing a second
+  // source does not lose the first.
+  const runSearch = useCallback((query: string) => startSearch(query, search?.userSearchUrls ?? {}), [startSearch, search]);
 
-  // Stages the URL only: retrying immediately would mean submitting one of
-  // several FAILED sources' URLs re-runs the search before the rest are in.
-  // runSearch (or another provideSearchUrl call) picks up everything staged.
-  const provideSearchUrl = useCallback((domain: string, url: string) => {
-    setUserSearchUrls((urls) => ({ ...urls, [domain]: url }));
+  const retryWithUrl = useCallback(
+    (query: string, domain: string, url: string) => startSearch(query, { ...search?.userSearchUrls, [domain]: url }),
+    [startSearch, search],
+  );
+
+  const resumeSearch = useCallback((summary: SearchSummary) => {
+    setStagedSources(summary.sources.map((domain) => ({ domain, status: 'PENDING' })));
+    setConfirmDomain(null);
+    setDiscarded([]);
+    setAccepted([]);
+    setListings([]);
+    setSearch(null);
+    setSearchId(summary.id);
   }, []);
 
   const confirmCandidate = useCallback(
     (index: number) => {
       const listing = listings.find((item) => item.retailerDomain === confirmDomain);
       const candidate = toCandidateViews(listing ?? null)[index];
-      if (!searchId || !listing || !candidate?.url) return;
-      // Index 0 is the automatic pick, so confirming it needs no write.
-      if (candidate.url === listing.url) {
-        setConfirmDomain(null);
-        return;
-      }
-      confirmMatch(searchId, listing.retailerDomain, candidate.url).catch(fail);
       setConfirmDomain(null);
+      if (!searchId || !listing || !candidate?.url) return;
+      // The automatic pick is not among its own runners-up, so the callable has nothing to promote.
+      if (candidate.url === listing.url) return setAccepted((domains) => [...domains, listing.retailerDomain]);
+      confirmMatch(searchId, listing.retailerDomain, candidate.url).catch(fail);
     },
     [searchId, listings, confirmDomain, fail],
   );
@@ -158,18 +147,22 @@ export function useLiveSession(userId: string | null): SiftSession {
     setConfirmDomain(null);
   }, [confirmDomain]);
 
+  const dropSource = useCallback((domain: string) => {
+    setDiscarded((domains) => [...domains, domain]);
+    setStagedSources((sources) => sources.filter((source) => source.domain !== domain));
+  }, []);
+
   const saveCurrentSearch = useCallback(
     (query: string) => {
-      const lowest = listings[0]?.price;
-      if (!userId || lowest === undefined) return;
+      if (!userId || lowest === null) return;
       saveSearch(
         userId,
         query,
-        listings.map((listing) => listing.retailerDomain),
+        shown.map((listing) => listing.retailerDomain),
         lowest,
       ).catch(fail);
     },
-    [userId, listings, fail],
+    [userId, shown, lowest, fail],
   );
 
   const checkSaved = useCallback(
@@ -187,8 +180,7 @@ export function useLiveSession(userId: string | null): SiftSession {
     setStagedSources((sources) =>
       sources.some((source) => source.domain === domain) ? sources : [...sources, { domain, status: 'PENDING' }],
     );
-    // A site someone else already solved needs no resolving, so say so before
-    // the run rather than after it. Never fatal: it only upgrades the chip.
+    // A site someone else already solved needs no resolving. Never fatal: it only upgrades the row.
     isDomainKnown(domain)
       .then((known) => {
         if (!known) return;
@@ -205,112 +197,103 @@ export function useLiveSession(userId: string | null): SiftSession {
     setStagedSources((sources) => sources.filter((source) => source.domain !== domain));
   }, []);
 
-  /**
-   * Dropping the search id also drops everything that hung off it, including
-   * the search document itself. Before it goes, whatever the pipeline actually
-   * found is folded into stagedSources, so leaving the live screen does not
-   * revert a source that resolved back to PENDING on the sources screen.
-   */
-  const clearSearch = useCallback(() => {
-    setStagedSources((current) => {
-      if (!search) return current;
-      const live = new Map(search.sources.map((state) => [state.domain, toSourceView(state)]));
-      return current.map((staged) => live.get(staged.domain) ?? staged);
-    });
+  const setSources = useCallback(
+    (domains: string[]) => {
+      setStagedSources(NO_SOURCES);
+      domains.forEach(addSource);
+    },
+    [addSource],
+  );
+
+  const resetSources = useCallback(() => {
+    setStagedSources(NO_SOURCES);
     setSearchId(null);
     setSearch(null);
     setListings([]);
     setConfirmDomain(null);
     setDiscarded([]);
-  }, [search]);
-
-  const resetSources = useCallback(() => {
-    setStagedSources(NO_SOURCES);
-    setUserSearchUrls({});
-    clearSearch();
+    setAccepted([]);
     setError(null);
-  }, [clearSearch]);
-
-  const cancelSearch = clearSearch;
+  }, []);
 
   // Before a run the sources are whatever the user staged. During and after one
   // the pipeline owns their status, so the search document wins.
   const sources = useMemo<SourceView[]>(() => {
     if (!search) return stagedSources;
-    const live = new Map(search.sources.map((state) => [state.domain, toSourceView(state)]));
-    return stagedSources.map((staged) => live.get(staged.domain) ?? staged);
-  }, [search, stagedSources]);
+    const live = new Map(
+      search.sources.filter((state) => typeof state === 'object').map((state) => [state.domain, toSourceView(state)]),
+    );
+    return stagedSources.filter((staged) => !discarded.includes(staged.domain)).map((staged) => live.get(staged.domain) ?? staged);
+  }, [search, stagedSources, discarded]);
 
-  // Delisted sources are gone from every read of the run: tiles, notes, saving.
-  const shown = useMemo(
-    () => listings.filter((listing) => !discarded.includes(listing.retailerDomain)),
-    [listings, discarded],
-  );
-
-  // Newest run of each query only: re-running the same search should refresh
-  // its row, not add another. Docs arrive newest first, so the first wins.
-  const recents = useMemo(() => {
+  // Newest run of each query only: re-running the same search refreshes its row.
+  const searches = useMemo(() => {
     const seen = new Set<string>();
-    return recentDocs.filter((doc) => !seen.has(doc.query) && seen.add(doc.query));
+    return recentDocs.filter((doc) => !seen.has(doc.query) && seen.add(doc.query)).map(toSearchSummary);
   }, [recentDocs]);
 
-  const notes = useMemo<NoteView[]>(() => {
-    const dropNotes = savedDocs.map(toDropNote).filter((note): note is NoteView => note !== null);
-    return [...toSourceNotes(search), ...toConfirmNotes(shown), ...dropNotes];
-  }, [search, shown, savedDocs]);
+  const alerts = useMemo(() => {
+    const visible = search ? { ...search, sources: search.sources.filter((state) => !discarded.includes(state.domain)) } : null;
+    return toAlerts(visible, shown, savedDocs);
+  }, [search, shown, savedDocs, discarded]);
 
   const running = search?.status === 'pending' || search?.status === 'resolving' || search?.status === 'extracting';
 
   return useMemo<SiftSession>(
     () => ({
       error,
+      searchId,
       sources,
       tiles: toTileViews(shown),
       saved: savedDocs.map(toSavedItemView),
-      recents: recents.slice(0, 4).map(recentLabel),
+      searches,
       candidates: toCandidateViews(listings.find((item) => item.retailerDomain === confirmDomain) ?? null),
-      notes,
-      stagedUrls: userSearchUrls,
-      history,
+      confirmDomain,
+      alerts,
       running: !!running,
       complete: search?.status === 'complete' || search?.status === 'failed',
       addSource,
       removeSource,
+      setSources,
       resetSources,
       runSearch,
-      provideSearchUrl,
-      cancelSearch,
+      retryWithUrl,
+      resumeSearch,
+      dropSource,
       beginConfirm: setConfirmDomain,
       confirmCandidate,
       discardConfirmSource,
       saveCurrentSearch,
       checkSaved,
       checkAllSaved,
+      setStep,
     }),
     [
       error,
+      searchId,
       sources,
       shown,
       listings,
       savedDocs,
-      recents,
+      searches,
       confirmDomain,
-      notes,
-      userSearchUrls,
-      history,
+      alerts,
       running,
       search?.status,
       addSource,
       removeSource,
+      setSources,
       resetSources,
       runSearch,
-      provideSearchUrl,
-      cancelSearch,
+      retryWithUrl,
+      resumeSearch,
+      dropSource,
       confirmCandidate,
       discardConfirmSource,
       saveCurrentSearch,
       checkSaved,
       checkAllSaved,
+      setStep,
     ],
   );
 }

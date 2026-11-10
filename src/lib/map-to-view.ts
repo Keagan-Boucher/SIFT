@@ -5,67 +5,58 @@
 
 import { fmtPrice } from '@/lib/format-price';
 import type { CandidateDoc, ListingDoc, SavedSearchDoc, SearchDoc, SourceStateDoc } from '@/types/firestore';
-import type { CandidateView, NoteView, SavedItemView, SourceView, TileView } from '@/types/view';
-import type { SourceStatus } from '@/components/sift/SourceChip';
+import type { AlertView, CandidateView, ErrorKind, SavedItemView, SearchSummary, SourceView, TileView } from '@/types/view';
 
-const TIER_LABEL: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: 'T1 · OFFICIAL API',
-  2: 'T2 · INTERNAL JSON',
-  3: 'T3 · STRUCTURED DATA',
-  4: 'T4 · HEURISTIC HTML',
-  5: 'T5 · HEADLESS RENDER',
+export const STEP_NUMBER = { sources: 1, scan: 2, confirm: 3, compare: 4 } as const;
+
+const WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+
+/** "Three", for counts in sentences. Past ten, digits read better. */
+export function countWord(n: number): string {
+  return WORDS[n] ?? String(n);
+}
+
+/** Below this a match is not trusted without the user. Mirrors the pipeline's threshold. */
+export const CONFIRM_THRESHOLD = 0.6;
+
+/** What each failure looks like in a row, and the fix offered beside it. */
+export const ERROR_COPY: Record<ErrorKind, { reason: string; fix: string }> = {
+  blocked: { reason: 'Blocked the scan', fix: 'RETRY' },
+  'no-results': { reason: 'No search results', fix: 'PASTE URL' },
+  'weak-match': { reason: 'Weak match, pick one', fix: 'PICK' },
+  timeout: { reason: 'Timed out', fix: 'RETRY' },
 };
 
 /**
- * BLOCKED and FAILED are kept apart deliberately. BLOCKED means robots.txt
- * refused us, which will not change and gates the search. FAILED means this
- * query could not be read off that site, which another query might manage, so
- * it is reported without standing in the way. RESOLVING is still in flight.
+ * BLOCKED means the site refused the request. FAILED means no readable search
+ * page was found, unless the reason says the function ran out of time.
  */
-function sourceStatus(status: SourceStateDoc['status']): SourceStatus {
-  if (status === 'RESOLVED') return 'RESOLVED';
-  if (status === 'BLOCKED') return 'BLOCKED';
-  if (status === 'FAILED') return 'FAILED';
-  return 'PENDING';
-}
-
-/** Turns a domain into the retailer name shown on a tile: takealot.com -> Takealot. */
-export function retailerName(domain: string): string {
-  const label = domain.replace(/^www\./, '').split('.')[0] ?? domain;
-  return label.charAt(0).toUpperCase() + label.slice(1);
+export function errorKind(status: SourceStateDoc['status'], reason?: string): ErrorKind | undefined {
+  if (status === 'BLOCKED') return 'blocked';
+  if (status !== 'FAILED') return undefined;
+  return reason && /time ?out|timed out|deadline/i.test(reason) ? 'timeout' : 'no-results';
 }
 
 export function toSourceView(state: SourceStateDoc): SourceView {
-  return { domain: state.domain, status: sourceStatus(state.status), reason: state.reason };
-}
-
-export function toTileView(listing: ListingDoc, lowestPrice: number): TileView {
-  return {
-    retailer: retailerName(listing.retailerDomain),
-    domain: listing.retailerDomain,
-    tier: listing.extractionTier,
-    confidence: listing.confidenceBadge,
-    price: fmtPrice(listing.price),
-    value: listing.price,
-    lowest: listing.price === lowestPrice,
-    count: listing.needsConfirmation ? listing.candidates.length + 1 : undefined,
-    issue: listing.needsConfirmation,
-    title: listing.title,
-    // Kept whole: the detail popup opens this in a browser and strips the
-    // scheme itself for display. A schemeless string is not an openable URL.
-    url: listing.url,
-    method: TIER_LABEL[listing.extractionTier],
-    stock: listing.inStock ? 'IN STOCK' : 'OUT OF STOCK',
-  };
+  return { domain: state.domain, status: state.status, reason: state.reason, kind: errorKind(state.status, state.reason) };
 }
 
 export function toTileViews(listings: ListingDoc[]): TileView[] {
   if (listings.length === 0) return [];
   const lowestPrice = Math.min(...listings.map((listing) => listing.price));
-  return listings.map((listing) => toTileView(listing, lowestPrice));
+  return listings.map((listing) => ({
+    domain: listing.retailerDomain,
+    title: listing.title,
+    price: fmtPrice(listing.price),
+    value: listing.price,
+    lowest: listing.price === lowestPrice,
+    issue: listing.needsConfirmation && !listing.confirmedByUser,
+    // Kept whole: tapping a row opens it in a browser.
+    url: listing.url,
+  }));
 }
 
-export function toCandidateView(candidate: CandidateDoc): CandidateView {
+function toCandidateView(candidate: CandidateDoc): CandidateView {
   return {
     title: candidate.title,
     price: fmtPrice(candidate.price),
@@ -77,28 +68,28 @@ export function toCandidateView(candidate: CandidateDoc): CandidateView {
 
 /**
  * The candidates for the confirm step: the listing that was picked
- * automatically, plus the runners-up it beat, so the user compares like for like.
+ * automatically, plus the runners-up it beat, best first, three at most.
  */
 export function toCandidateViews(listing: ListingDoc | null): CandidateView[] {
   if (!listing) return [];
   return [
-    {
-      title: listing.title,
-      price: fmtPrice(listing.price),
-      value: listing.price,
-      confidence: listing.matchConfidence,
-      url: listing.url,
-    },
+    { title: listing.title, price: fmtPrice(listing.price), value: listing.price, confidence: listing.matchConfidence, url: listing.url },
     ...listing.candidates.map(toCandidateView),
-  ];
+  ]
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 3);
 }
 
-function relativeStamp(millis: number | null): string | null {
+/** "2 MIN AGO", "3 H AGO", "YESTERDAY", "4 DAYS AGO". */
+export function relativeStamp(millis: number | null): string | null {
   if (millis === null) return null;
   const minutes = Math.max(0, Math.round((Date.now() - millis) / 60000));
-  if (minutes < 60) return `${String(minutes).padStart(2, '0')}:00 AGO`;
+  if (minutes < 1) return 'NOW';
+  if (minutes < 60) return `${minutes} MIN AGO`;
   const hours = Math.round(minutes / 60);
-  return hours < 24 ? `${hours}H AGO` : `${Math.round(hours / 24)}D AGO`;
+  if (hours < 24) return `${hours} H AGO`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? 'YESTERDAY' : `${days} DAYS AGO`;
 }
 
 export function toSavedItemView(saved: SavedSearchDoc): SavedItemView {
@@ -108,7 +99,6 @@ export function toSavedItemView(saved: SavedSearchDoc): SavedItemView {
     name: saved.query,
     value: saved.lowestPrice,
     sources: saved.sourceCount,
-    dropTo: null,
     checked: saved.lastCheckedAt !== null,
     justDropped: dropped,
     lastChecked: relativeStamp(saved.lastCheckedAt?.toMillis() ?? null),
@@ -116,50 +106,55 @@ export function toSavedItemView(saved: SavedSearchDoc): SavedItemView {
   };
 }
 
-/** A price drop the user has not seen yet becomes an alert banner. */
-export function toDropNote(saved: SavedSearchDoc): NoteView | null {
-  if (saved.previousLowestPrice === null || saved.lowestPrice >= saved.previousLowestPrice) return null;
-  const percent = Math.round(((saved.previousLowestPrice - saved.lowestPrice) / saved.previousLowestPrice) * 1000) / 10;
-  return {
-    id: `drop-${saved.id}`,
-    kind: 'drop',
-    domain: saved.id,
-    heading: 'PRICE_DROP',
-    body: `${saved.query} fell to ${fmtPrice(saved.lowestPrice)} from ${fmtPrice(saved.previousLowestPrice)}, ${percent}% down.`,
-  };
-}
+const ALERT_MESSAGE: Record<ErrorKind, (domain: string) => string> = {
+  blocked: (domain) => `${domain} blocked the scan`,
+  'no-results': (domain) => `${domain} needs a search URL`,
+  'weak-match': (domain) => `${domain} needs you to pick the match`,
+  timeout: (domain) => `${domain} timed out`,
+};
 
-/** Sources that could not be scraped become alert banners explaining why. */
-export function toSourceNotes(search: SearchDoc | null): NoteView[] {
-  if (!search) return [];
-  return search.sources
-    .filter((state) => state.status === 'BLOCKED' || state.status === 'FAILED')
-    .map((state) => ({
-      id: `source-${state.domain}`,
-      kind: 'block' as const,
-      domain: state.domain,
-      heading: state.status === 'BLOCKED' ? 'ROBOTS_BLOCKED' : 'EXTRACTION_FAILED',
-      // The remedy differs: a robots refusal will not change, so the source has
-      // to go. A failed read might work for a different query, so it stays.
-      body:
-        state.status === 'BLOCKED'
-          ? `${state.domain}: ${state.reason ?? 'refuses automated access'}. Remove this source to continue.`
-          : `${state.domain}: ${state.reason ?? 'could not be read'}. Other sources still compared.`,
-      // A robots refusal will not change no matter what URL is pasted, so only
-      // a failed read is worth offering the fix for.
-      retryable: state.status === 'FAILED',
-    }));
-}
-
-/** A listing whose match confidence fell short becomes a prompt to confirm it. */
-export function toConfirmNotes(listings: ListingDoc[]): NoteView[] {
-  return listings
-    .filter((listing) => listing.needsConfirmation)
+/** Every source that needs the user, plus any watched price that dropped, as one inbox. */
+export function toAlerts(search: SearchDoc | null, listings: ListingDoc[], saved: SavedSearchDoc[]): AlertView[] {
+  const at = search?.updatedAt?.toMillis?.() ?? null;
+  const sourceAlerts: AlertView[] = (search?.sources ?? []).flatMap((state) => {
+    const kind = errorKind(state.status, state.reason);
+    return kind ? [{ id: `source-${search?.id}-${state.domain}`, kind, domain: state.domain, message: ALERT_MESSAGE[kind](state.domain), at }] : [];
+  });
+  const weak: AlertView[] = listings
+    .filter((listing) => listing.needsConfirmation && !listing.confirmedByUser)
     .map((listing) => ({
-      id: `confirm-${listing.retailerDomain}`,
-      kind: 'prompt' as const,
+      id: `weak-${listing.searchId}-${listing.retailerDomain}`,
+      kind: 'weak-match' as const,
       domain: listing.retailerDomain,
-      heading: 'CONFIRM_MATCH',
-      body: `${listing.retailerDomain} matched at ${Math.round(listing.matchConfidence * 100)}%, which does not clear the 60% needed to trust it. Select that tile to resolve it.`,
+      message: ALERT_MESSAGE['weak-match'](listing.retailerDomain),
+      at,
     }));
+  const drops: AlertView[] = saved
+    .filter((item) => item.previousLowestPrice !== null && item.lowestPrice < item.previousLowestPrice)
+    .map((item) => ({
+      id: `drop-${item.id}-${item.lowestPrice}`,
+      kind: 'drop' as const,
+      message: `${item.query} dropped to ${fmtPrice(item.lowestPrice)}`,
+      at: item.lastCheckedAt?.toMillis() ?? null,
+    }));
+  return [...sourceAlerts, ...weak, ...drops];
+}
+
+/**
+ * Searches from before the redesign carry no step, so the pipeline status
+ * stands in: a run still going is resumable, anything settled is finished.
+ */
+export function toSearchSummary(search: SearchDoc): SearchSummary {
+  const running = search.status === 'pending' || search.status === 'resolving' || search.status === 'extracting';
+  const step = search.step ?? (running ? 'scan' : 'compare');
+  return {
+    id: search.id,
+    query: search.query,
+    step,
+    finished: step === 'compare',
+    lowest: search.lowestPrice ?? null,
+    at: search.createdAt?.toMillis?.() ?? null,
+    // A brand-new search holds bare domains until the pipeline first writes its states back.
+    sources: (search.sources as (SourceStateDoc | string)[]).map((source) => (typeof source === 'string' ? source : source.domain)),
+  };
 }

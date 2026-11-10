@@ -13,7 +13,7 @@ interface SiftMarkProps {
   color?: string;
 }
 
-export function SiftMark({ width = 22, color = SiftColors.bone }: SiftMarkProps) {
+export function SiftMark({ width = 22, color = SiftColors.mint }: SiftMarkProps) {
   return (
     <Svg width={width} height={Math.round(width * RATIO)} viewBox="0 0 89 71" fill="none">
       <Path d={PATH} fill={color} />

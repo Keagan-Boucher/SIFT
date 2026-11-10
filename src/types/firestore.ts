@@ -32,6 +32,11 @@ export interface SearchDoc {
   resolvedCount?: number;
   /** Search URLs the user pasted for domains resolution could not work out. */
   userSearchUrls?: Record<string, string>;
+  /** The resume pointer. Written by the client on every step transition. Absent on searches older than the redesign. */
+  step?: 'sources' | 'scan' | 'confirm' | 'compare';
+  stepUpdatedAt?: Timestamp;
+  /** Lowest confirmed listing so far, written by the client so the home screen needs no listings query. */
+  lowestPrice?: number | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

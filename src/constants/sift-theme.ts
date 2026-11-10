@@ -1,98 +1,52 @@
 /**
- * SIFT / Readout design tokens.
- * Ported from the Claude Design system project `Sift Design System`
- * (tokens/colors.css, typography.css, spacing.css, motion.css, matrix.css).
- * Every SIFT component and screen should source values from here rather
- * than hardcoding hex/px — this file is the single source of truth.
+ * SIFT design tokens, from the "Screen preview v2" page of the SIFT Figma file.
+ *
+ * Acid is the one primary action on a screen. Mint is the app reporting what it
+ * found or finished. Ember is breakage and nothing else. Everything else is the
+ * grey ramp. No gradients, no glows, no coloured shadows.
  */
 
 export const SiftColors = {
-  // neutrals
-  void: '#0E1012',
-  carbon: '#191C1F',
-  slate: '#24282B',
-  graphite: '#333A3E',
-  bone: '#E9EBEA',
-  boneDim: '#7D8489',
-  paper: '#B9BDBF',
-  paperHi: '#D6D9DA',
-  // signals
-  mint: '#3FE383',
+  canvas: '#0A0A0C',
+  surface: '#141416',
+  surfaceHi: '#1A1A1D',
+  hairline: 'rgba(255,255,255,0.09)',
+  text: '#ECEDEB',
+  textDim: '#9A9C9A',
+  textMute: '#6E7271',
   acid: '#C8F03C',
+  mint: '#3FE383',
   ember: '#F0552E',
-  current: '#3A7BD5',
-  // semantic aliases
-  onSignal: '#0E1012',
-  onLight: '#0E1012',
+  onAccent: '#0A0A0C',
+  /** Empty tracker segments and meter tracks. */
+  track: '#2A2B2E',
+  /** Unhighlighted meter fill: white at 30%. */
+  meterRest: 'rgba(255,255,255,0.3)',
 } as const;
 
-export const SiftTier: Record<1 | 2 | 3 | 4 | 5 | 'unresolved', string> = {
-  1: SiftColors.mint,
-  2: SiftColors.mint,
-  3: SiftColors.paperHi,
-  4: SiftColors.ember,
-  5: SiftColors.current,
-  unresolved: SiftColors.graphite,
-};
+/** Every surface, control and bar. Only device chrome and OS notifications differ. */
+export const SiftRadius = 3;
 
-export const SiftSigilColor: Record<'//' | '>' | '!' | '?', string> = {
-  '//': SiftColors.mint,
-  '>': SiftColors.acid,
-  '!': SiftColors.ember,
-  '?': SiftColors.current,
-};
-
-export const SiftSpacing = {
-  space1: 4,
-  space2: 8,
-  space3: 12,
-  space4: 16,
-  space5: 24,
-  space6: 32,
-  space7: 48,
-  gridGutter: 16,
-  gridMarginTrailing: 24,
-  gridMarginLeading: 56,
-  railWidth: 56,
-  promptBarHeight: 36,
-  stripHeight: 18,
-  stripGlyph: 12,
-  stripIndicator: 4,
-} as const;
-
-/** Zero corner radius everywhere — a hard design-system rule, never overridden. */
-export const SiftRadius = 0;
+export const SiftSpacing = { s1: 4, s2: 8, s3: 12, s4: 16, s5: 20, s6: 24, s7: 32 } as const;
 
 export const SiftFontFamily = {
   display: 'BigShouldersDisplay_800ExtraBold',
-  displayBold: 'BigShouldersDisplay_700Bold',
-  system: 'JetBrainsMono_400Regular',
-  systemBold: 'JetBrainsMono_700Bold',
-  longform: 'Archivo_400Regular',
-  longformMedium: 'Archivo_500Medium',
+  mono: 'JetBrainsMono_400Regular',
+  monoBold: 'JetBrainsMono_700Bold',
+  prose: 'Archivo_400Regular',
+  proseMedium: 'Archivo_500Medium',
 } as const;
 
 export const SiftType = {
-  displayL: { fontFamily: SiftFontFamily.display, fontSize: 30, lineHeight: 28, letterSpacing: -0.45 },
-  displayM: { fontFamily: SiftFontFamily.displayBold, fontSize: 20, lineHeight: 20, letterSpacing: -0.2 },
-  priceL: { fontFamily: SiftFontFamily.systemBold, fontSize: 24, lineHeight: 26, letterSpacing: -0.24 },
-  priceM: { fontFamily: SiftFontFamily.systemBold, fontSize: 16, lineHeight: 20, letterSpacing: -0.08 },
-  body: { fontFamily: SiftFontFamily.longform, fontSize: 14, lineHeight: 20, letterSpacing: 0 },
-  title: { fontFamily: SiftFontFamily.longformMedium, fontSize: 14, lineHeight: 19, letterSpacing: 0 },
-  label: { fontFamily: SiftFontFamily.systemBold, fontSize: 11, lineHeight: 12, letterSpacing: 0.88 },
-  annot: { fontFamily: SiftFontFamily.system, fontSize: 9, lineHeight: 11, letterSpacing: 0.9 },
-} as const;
-
-export const SiftMotion = {
-  durationInstant: 90,
-  durationSnap: 160,
-  durationSweep: 320,
-  durationSequence: 640,
-  easeEntry: [0.2, 0, 0, 1] as [number, number, number, number],
-} as const;
-
-export const SiftMatrix = {
-  lo: { pitch: 12, dot: 1.5, color: SiftColors.graphite, opacity: 1 },
-  mid: { pitch: 8, dot: 2, color: SiftColors.graphite, opacity: 1 },
-  hi: { pitch: 4, dot: 2, color: SiftColors.boneDim, opacity: 0.3 },
+  /** Screen titles. Uppercase, tight. */
+  title: { fontFamily: SiftFontFamily.display, fontSize: 40, lineHeight: 36, letterSpacing: 1, textTransform: 'uppercase' },
+  /** Uppercase mono labels: step counts, section labels, meta. */
+  label: { fontFamily: SiftFontFamily.mono, fontSize: 10, lineHeight: 14, letterSpacing: 1.4, textTransform: 'uppercase' },
+  labelBold: { fontFamily: SiftFontFamily.monoBold, fontSize: 10, lineHeight: 14, letterSpacing: 1.4, textTransform: 'uppercase' },
+  /** Domains and other data read as identifiers. */
+  data: { fontFamily: SiftFontFamily.mono, fontSize: 13, lineHeight: 18 },
+  price: { fontFamily: SiftFontFamily.monoBold, fontSize: 18, lineHeight: 22 },
+  /** Sentences and product titles. */
+  body: { fontFamily: SiftFontFamily.prose, fontSize: 14, lineHeight: 20 },
+  small: { fontFamily: SiftFontFamily.prose, fontSize: 11.5, lineHeight: 16 },
 } as const;

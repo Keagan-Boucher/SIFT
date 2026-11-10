@@ -1,25 +1,32 @@
-import { useCallback, useMemo } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { TopIcon } from '@/components/ui/Screen';
 import { SiftColors } from '@/constants/sift-theme';
-import { fmtPrice } from '@/lib/format-price';
-import { hasBackend } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { useLiveSession } from '@/hooks/session/use-live-session';
+import { hasBackend } from '@/lib/firebase';
 import { PRESET_CATEGORIES } from '@/lib/presets';
+import { recommend } from '@/lib/recommend';
+import { useKnownDomains } from '@/lib/registry';
 import { useFlowStore, type Screen } from '@/store/useFlowStore';
-import type { RecentView } from '@/types/view';
+import type { AlertView, SearchSummary, SourceView, Step } from '@/types/view';
 
 export type { Screen };
 
-/** True middle of a series: the average of the two middle values on an even count. */
-function medianOf(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+/** A search typed but never started. Nothing for the backend to do with it, so it stays on the device. */
+const DRAFT_KEY = 'sift.draft';
+
+interface Draft {
+  query: string;
+  sources: string[];
 }
 
+const STEP_FOR_SCREEN: Partial<Record<Screen, Step>> = { live: 'scan', fix: 'scan', confirm: 'confirm', compare: 'compare' };
+const SCREEN_FOR_STEP: Record<Step, Screen> = { sources: 'sources', scan: 'live', confirm: 'live', compare: 'compare' };
+
 /** Trims a pasted URL down to the bare domain the backend expects. */
-function toDomain(input: string): string {
+export function toDomain(input: string): string {
   return input
     .trim()
     .toLowerCase()
@@ -29,436 +36,195 @@ function toDomain(input: string): string {
 }
 
 export function useSiftFlow() {
-  const state = useFlowStore();
-
+  const store = useFlowStore();
+  const { screen, query, patch, read } = store;
   const auth = useAuth();
   const session = useLiveSession(auth.user?.uid ?? null);
-  // With neither a project nor the emulator suite there is nothing behind the
-  // screens: they render empty and the account panel says why.
-  const noBackend = !hasBackend;
+  const { setStep, setSources, searchId } = session;
+  /** The draft from a previous launch. While the app runs, the live query and staged sources are the draft. */
+  const [storedDraft, setStoredDraft] = useState<Draft | null>(null);
 
-  const { setScreen, setQuery, setInput, openCategory, toggleArchive, toggleAccount, toggleLinks, openRetry, closeRetry, openDiscard, closeDiscard } = state;
-  /** Reuses a past search: its query, plus its sources merged into whatever is already staged. */
-  const chooseRecent = useCallback(
-    (recent: RecentView) => {
-      setQuery(recent.name);
-      recent.sources.forEach(session.addSource);
-    },
-    [setQuery, session],
+  const go = useCallback((next: Screen) => patch({ screen: next }), [patch]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(DRAFT_KEY)
+      .then((raw) => raw && setStoredDraft(JSON.parse(raw) as Draft))
+      .catch(() => {});
+  }, []);
+
+  const staged = session.sources.map((source) => source.domain).join(',');
+  const liveDraft: Draft | null =
+    !searchId && (query.trim() || staged) ? { query: query.trim(), sources: staged ? staged.split(',') : [] } : null;
+  const draft = liveDraft ?? storedDraft;
+
+  // Persisted while the new search screen is open, so it survives the app being closed.
+  useEffect(() => {
+    if (screen !== 'sources' || searchId) return;
+    if (liveDraft) AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(liveDraft)).catch(() => {});
+    else AsyncStorage.removeItem(DRAFT_KEY).catch(() => {});
+    // liveDraft is rebuilt every render; query and staged are what it is made of.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, query, staged, searchId]);
+
+  // The step is written on every transition, never on a timer: it is the resume pointer.
+  const step = STEP_FOR_SCREEN[screen];
+  useEffect(() => {
+    if (step) setStep(step);
+  }, [step, setStep]);
+
+  const past = useMemo(
+    () => session.searches.map((search) => ({ query: search.query, sources: search.sources, at: search.at })),
+    [session.searches],
   );
-  const selectTile = useCallback((index: number) => state.select(index), [state]);
-  const closeListing = useCallback(() => state.select(null), [state]);
-  const chooseCandidate = useCallback((index: number) => state.choose(index), [state]);
-  const openSaved = useCallback(() => setScreen('saved'), [setScreen]);
-  const openPresets = useCallback(() => setScreen('presets'), [setScreen]);
+  const candidateDomains = useMemo(() => recommend(query, past, {}).map((s) => s.domain), [query, past]);
+  const known = useKnownDomains(candidateDomains);
+  const suggestions = useMemo(() => recommend(query, past, known), [query, past, known]);
 
-  /** Stages every domain in the open category, then drops back to the sources screen. */
-  const addPresetSources = useCallback(() => {
-    PRESET_CATEGORIES.find((category) => category.id === state.presetCategory)?.domains.forEach(session.addSource);
-    setScreen('sources');
-  }, [session.addSource, state.presetCategory, setScreen]);
+  // The top three arrive selected, and keep tracking the query until the user picks for themselves.
+  const topThree = suggestions
+    .slice(0, 3)
+    .map((s) => s.domain)
+    .join(',');
+  useEffect(() => {
+    if (screen === 'sources' && !store.sourcesTouched && !searchId) setSources(topThree ? topThree.split(',') : []);
+  }, [screen, topThree, store.sourcesTouched, searchId, setSources]);
 
-  const addSourceFromInput = useCallback(() => {
-    const domain = toDomain(state.input);
-    if (domain) session.addSource(domain);
-    setInput('');
-  }, [session, state.input, setInput]);
+  const unread = session.alerts.filter((alert) => !read.includes(alert.id));
 
-  const removeSource = useCallback(
-    (domain: string) => {
-      session.removeSource(domain);
-    },
-    [session],
-  );
+  // Everything in this run that is waiting on the user, weak matches included.
+  const needs: SourceView[] = [
+    ...session.sources.filter((source) => source.kind),
+    ...session.tiles
+      .filter((tile) => tile.issue)
+      .map((tile) => ({ domain: tile.domain, status: 'RESOLVED' as const, kind: 'weak-match' as const })),
+  ];
 
-  const resetSources = useCallback(() => {
-    session.resetSources();
-    setInput('');
-    state.clearArchive();
-  }, [session, setInput, state]);
+  const inProgress = session.searches.find((search) => !search.finished) ?? null;
+  const finished = session.searches.filter((search) => search.finished);
 
-  const runSearch = useCallback(() => {
-    session.runSearch(state.query);
-    state.select(null);
-    state.choose(0);
-    setScreen('live');
-  }, [session, state, setScreen]);
-
-  // Method D: stages a search URL pasted for one FAILED source. Multiple
-  // sources can each get one before retrying, so this only closes the popup;
-  // runSearch (the existing RETRY SEARCH action) is what re-runs with them.
-  const submitRetryUrl = useCallback(
-    (domain: string, url: string) => {
-      session.provideSearchUrl(domain, url.trim());
-      closeRetry();
-    },
-    [session, closeRetry],
-  );
-
-  const backToSourcesFromLive = useCallback(() => {
-    session.cancelSearch();
-    state.select(null);
-    setScreen('sources');
-  }, [session, state, setScreen]);
-
-  /** Notes the user has dismissed move to the archive rather than disappearing. */
-  const dismissNote = useCallback(
-    (id: string) => {
-      const note = session.notes.find((n) => n.id === id);
-      if (note) state.archive(note, 'THIS SESSION');
-    },
-    [session.notes, state],
-  );
-
-  const openConfirm = useCallback(
-    (domain: string) => {
+  const actions = useMemo(() => {
+    const openConfirm = (domain: string) => {
       session.beginConfirm(domain);
-      state.choose(0);
-      state.select(null);
-      setScreen('confirm');
-    },
-    [session, state, setScreen],
-  );
-
-  const confirmMatches = useCallback(() => {
-    session.confirmCandidate(state.chosen);
-    state.select(null);
-    setScreen('live');
-  }, [session, state, setScreen]);
-
-  /** Nothing this source returned matched: delist it and go back to the run. */
-  const discardConfirmSource = useCallback(() => {
-    session.discardConfirmSource();
-    closeDiscard();
-    state.select(null);
-    setScreen('live');
-  }, [session, state, setScreen, closeDiscard]);
-
-  const saveCurrentSearch = useCallback(() => {
-    session.saveCurrentSearch(state.query);
-  }, [session, state.query]);
-
-  const checkItem = useCallback((id: string) => session.checkSaved(id), [session]);
-  const checkAll = useCallback(() => session.checkAllSaved(), [session]);
-
-  const derived = useMemo(() => {
-    const { screen, selected, chosen, dismissed, showArchive, showAccount, showLinks } = state;
-    const { tiles, sources, saved, recents, candidates, running, complete, history } = session;
-
-    const presetCategory = PRESET_CATEGORIES.find((category) => category.id === state.presetCategory) ?? null;
-
-    const dismissedIds = new Set(dismissed.map((note) => note.id));
-    const notes = session.notes.filter((note) => !dismissedIds.has(note.id));
-
-    // Collapsed behind its own chip, same shape AlertLogPopup already renders.
-    const stagedLinks = Object.entries(session.stagedUrls).map(([domain, url]) => ({
-      id: `staged-${domain}`,
-      label: '>LINK_ADDED',
-      stamp: domain,
-      body: url,
-    }));
-
-    const resolved = tiles.length;
-    // Sorted for display, but each entry keeps its index in tiles so tapping a
-    // bar or an axis point can open the same listing popup the result tiles do.
-    const sortedEntries = tiles
-      .map((tile, index) => ({ tile, index }))
-      .sort((a, b) => a.tile.value - b.tile.value);
-    const sorted = sortedEntries.map((entry) => entry.tile);
-    const cheapest = sorted[0];
-    const dearest = sorted[sorted.length - 1];
-    const spread =
-      sorted.length > 1 ? Math.round(((dearest.value - cheapest.value) / cheapest.value) * 1000) / 10 : 0;
-
-    // Only a robots refusal gates a search. A source that could not be read for
-    // this query is reported but stays, since another query may well work.
-    const blockedSources = sources.filter((source) => source.status === 'BLOCKED').length;
-    const failedSources = sources.filter((source) => source.status === 'FAILED').length;
-    const openIssues = tiles.filter((tile) => tile.issue).length;
-    const selectedTile = selected !== null ? (tiles[selected] ?? null) : null;
-    const selectedIssue = !!selectedTile?.issue;
-    const droppedCount = saved.filter((item) => item.justDropped).length;
-
-    const railName: Record<Screen, string> = {
-      sources: 'ADD SOURCES',
-      live: 'LIVE RESULTS',
-      confirm: 'CONFIRM',
-      results: 'LIVE RESULTS',
-      dashboard: 'DASHBOARD',
-      saved: 'SAVED',
-      presets: 'PRESETS',
+      patch({ chosen: null, screen: 'confirm' });
     };
-
-    const statusLine: Record<Screen, string> = {
-      sources:
-        blockedSources > 0
-          ? `${blockedSources} BLOCKED · REMOVE TO CONTINUE`
-          : failedSources > 0
-            ? `${sources.length} SOURCES · ${failedSources} UNREADABLE`
-            : `${sources.length} SOURCES · ${noBackend ? 'NO BACKEND' : 'IDLE'}`,
-      live: running
-        ? `${resolved}/${sources.length} RESOLVED · LIVE`
-        : openIssues > 0
-          ? `${openIssues} TO REVIEW · SELECT TO RESOLVE`
-          : `${resolved} PRICES · COMPLETE`,
-      confirm: `${candidates.length} CANDIDATES · IDLE`,
-      results: `${resolved} PRICES · COMPLETE`,
-      dashboard: `${resolved} PRICES · SPREAD ${spread}%`,
-      saved: droppedCount > 0 ? `${droppedCount} DROPPED · REVIEW` : `${saved.length} WATCHED · IDLE`,
-      presets: presetCategory
-        ? `${presetCategory.name} · ${presetCategory.domains.length} SOURCES`
-        : `${PRESET_CATEGORIES.length} CATEGORIES · SELECT ONE`,
+    const retry = () => {
+      session.runSearch(query.trim());
+      patch({ screen: 'live' });
     };
-
-    const nav: Record<
-      Screen,
-      { primaryLabel: string; primaryAction: () => void; primaryDisabled?: boolean; secondaryLabel: string; secondaryAction: () => void }
-    > = {
-      sources: {
-        primaryLabel: 'RUN SEARCH',
-        primaryAction: runSearch,
-        primaryDisabled: blockedSources > 0 || sources.length === 0 || state.query.trim().length === 0,
-        secondaryLabel: 'RESET',
-        secondaryAction: resetSources,
-      },
-      live: {
-        primaryLabel: !complete
-          ? 'SEARCH RUNNING'
-          : selectedIssue
-            ? 'RESOLVE ISSUE'
-            : stagedLinks.length > 0
-              ? 'RETRY SEARCH'
-              : 'CONFIRM MATCHES',
-        primaryAction: () => {
-          if (selectedIssue && selectedTile) openConfirm(selectedTile.domain);
-          else if (stagedLinks.length > 0) runSearch();
-          else setScreen('results');
-        },
-        // RETRY SEARCH doesn't need confirm-match issues resolved first, they're
-        // unrelated problems. With nothing staged there is nothing to retry, so
-        // this is CONFIRM MATCHES again and its original gate applies as before:
-        // a FAILED source alone (no link given for it yet) still needs that.
-        primaryDisabled: !complete || (!selectedIssue && stagedLinks.length === 0 && openIssues > 0),
-        secondaryLabel: 'BACK',
-        secondaryAction: backToSourcesFromLive,
-      },
-      confirm: {
-        primaryLabel: 'CONFIRM MATCH',
-        primaryAction: confirmMatches,
-        primaryDisabled: candidates.length === 0,
-        secondaryLabel: 'BACK',
-        secondaryAction: () => setScreen('live'),
-      },
-      results: { primaryLabel: 'VIEW SPREAD', primaryAction: () => setScreen('dashboard'), secondaryLabel: 'BACK', secondaryAction: () => setScreen('live') },
-      dashboard: {
-        primaryLabel: 'SAVE SEARCH',
-        primaryAction: () => {
-          saveCurrentSearch();
-          setScreen('saved');
-        },
-        secondaryLabel: 'BACK',
-        secondaryAction: () => setScreen('results'),
-      },
-      presets: {
-        primaryLabel: 'ADD SOURCES',
-        primaryAction: addPresetSources,
-        primaryDisabled: !presetCategory,
-        secondaryLabel: 'BACK',
-        secondaryAction: () => setScreen('sources'),
-      },
-      saved: {
-        primaryLabel: 'CHECK ALL',
-        primaryAction: checkAll,
-        primaryDisabled: saved.length === 0 || saved.every((item) => item.checked),
-        secondaryLabel: 'BACK',
-        secondaryAction: () => setScreen('sources'),
-      },
-    };
-
-    // A flat history draws no bars, so a single observation sits mid-height.
-    const historyMin = Math.min(...history);
-    const historyRange = Math.max(...history) - historyMin;
-    const historyBars = history.map((value, index) => ({
-      heightPx: 14 + (historyRange > 0 ? ((value - historyMin) / historyRange) * 46 : 23),
-      isToday: index === history.length - 1,
-    }));
-
-    const priceRange = sorted.length > 1 ? dearest.value - cheapest.value : 0;
-    const ladder = sortedEntries.map(({ tile, index }) => ({
-      tileIndex: index,
-      label: tile.retailer.toUpperCase(),
-      price: tile.price,
-      widthPct: 10 + (priceRange > 0 ? ((tile.value - cheapest.value) / priceRange) * 90 : 90),
-      color:
-        tile.value === cheapest.value
-          ? SiftColors.mint
-          : tile.value === dearest.value
-            ? SiftColors.ember
-            : SiftColors.boneDim,
-    }));
-
-    const listing = selectedTile
-      ? {
-          title: selectedTile.title,
-          url: selectedTile.url,
-          method: selectedTile.method,
-          stock: selectedTile.stock,
-          priceLine:
-            selectedTile.price +
-            (selectedTile.lowest
-              ? `, LOWEST OF ${tiles.length}`
-              : `, ${Math.round(((selectedTile.value - cheapest.value) / cheapest.value) * 100)}% ABOVE LOWEST`),
-          confidenceLine: `${selectedTile.confidence}/4`,
-          checked: 'THIS SESSION',
-          issue: !!selectedTile.issue,
-        }
-      : null;
-
-    const selectedCandidate = candidates[chosen];
-
-    // The Learn Something side of the app: what the lowest price actually means,
-    // stated in the numbers this search produced rather than a fixed line.
-    const confirmDomain = selectedTile?.domain ?? tiles.find((tile) => tile.issue)?.domain ?? 'this source';
-    const confirmSuffix = `${candidates.length}_LOW_CONFIDENCE`;
-    const confirmInsight =
-      candidates.length === 0
-        ? 'Nothing to confirm. Every source matched above the threshold.'
-        : `${confirmDomain} returned ${candidates.length} listings for this query and the best scored ${Math.round((candidates[0]?.confidence ?? 0) * 100)}%, which does not clear the 60% needed to trust it. The one you pick is the one compared, and it is counted against this source for next time.`;
-
-    const historyTrend =
-      history.length > 1 ? (history[history.length - 1] < history[history.length - 2] ? 'FALLING' : 'RISING') : 'FLAT';
-    const historySummary =
-      history.length === 0
-        ? cheapest
-          ? `NO HISTORY YET · TODAY ${cheapest.price}`
-          : 'NO HISTORY YET'
-        : `LOW ${fmtPrice(Math.min(...history))} · MEDIAN ${fmtPrice(medianOf(history))} · TODAY ${fmtPrice(history[history.length - 1])}, ${historyTrend}`;
-
-    const heuristicCount = tiles.filter((tile) => tile.tier === 4).length;
-    const resultMetadata = [
-      `${blockedSources} ${blockedSources === 1 ? 'SOURCE' : 'SOURCES'} BLOCKED`,
-      `${heuristicCount} ${heuristicCount === 1 ? 'PRICE' : 'PRICES'} FROM HEURISTIC PARSING`,
-      `${resolved} OF ${sources.length} SOURCES RESOLVED`,
-    ];
-
     return {
-      mode: noBackend ? ('noBackend' as const) : ('live' as const),
-      error: session.error,
-      authPhase: auth.phase,
-      isGuest: auth.isGuest,
-      sources,
-      tiles,
-      saved,
-      recents,
-      candidates,
-      notes,
-      running,
-      complete,
-      resolved,
-      sorted,
-      spread,
-      blockedSources,
-      failedSources,
-      openIssues,
-      selectedTile,
-      railName: railName[screen],
-      railConnection: (running ? 'LIVE' : 'IDLE') as 'LIVE' | 'IDLE',
-      statusLine: statusLine[screen],
-      nav: nav[screen],
-      historyBars,
-      ladder,
-      listing,
-      showListing: selectedTile !== null && !running,
-      hasAlerts: notes.length + dismissed.length > 0,
-      alertCount: notes.length + dismissed.length,
-      archiveCount: dismissed.length,
-      archiveEmpty: dismissed.length === 0,
-      hasDrops: droppedCount > 0,
-      showArchive,
-      showAccount,
-      showLinks,
-      hasLinks: stagedLinks.length > 0,
-      linksCount: stagedLinks.length,
-      stagedLinks,
-      accountEmail: auth.user?.email ?? null,
-      presetCategories: PRESET_CATEGORIES,
-      presetCategory,
-      sourceCountLabel: String(sources.length).padStart(2, '0'),
-      recentCount: String(recents.length).padStart(2, '0'),
-      candidateSelectedLabel: selectedCandidate
-        ? `${selectedCandidate.price} · ${Math.round(selectedCandidate.confidence * 100)}%`
-        : 'NONE',
-      historySuffix: `${String(history.length).padStart(2, '0')}_CHECKS`,
-      historySummary,
-      confirmDomain,
-      confirmSuffix,
-      confirmInsight,
-      resultMetadata,
-      spreadPoints: sortedEntries.map(({ tile, index }) => ({
-        tileIndex: index,
-        value: tile.value,
-        priceLabel: tile.price,
-        label: tile.retailer.toUpperCase(),
-      })),
-      spreadLabel: `SPREAD · ${spread}% · N=${tiles.length} · TIERS ${tiles.map((tile) => `T${tile.tier}`).join(' ')}`,
-      resultSuffix: `${tiles.length}_PRICES`,
-      archiveLabeled: dismissed.map((note) => ({
-        ...note,
-        label: (note.kind === 'prompt' ? '>' : note.kind === 'drop' ? '//' : '!') + note.heading,
-      })),
+      go,
+      setQuery: (next: string) => patch({ query: next }),
+      newSearch: () => {
+        session.resetSources();
+        setStoredDraft(null);
+        patch({ screen: 'sources', query: '', sourcesTouched: false, allSuggestions: false, ownUrl: null });
+      },
+      resumeDraft: () => {
+        if (!draft) return;
+        session.resetSources();
+        setSources(draft.sources);
+        patch({ screen: 'sources', query: draft.query, sourcesTouched: draft.sources.length > 0 });
+      },
+      /** Back into an earlier search, at the screen its step names. Listeners rehydrate the rest. */
+      openSearch: (search: SearchSummary) => {
+        if (search.id !== searchId) session.resumeSearch(search);
+        patch({ query: search.query, screen: SCREEN_FOR_STEP[search.step] });
+      },
+      toggleSource: (domain: string) => {
+        if (session.sources.some((source) => source.domain === domain)) session.removeSource(domain);
+        else session.addSource(domain);
+        patch({ sourcesTouched: true });
+      },
+      setOwnUrl: (next: string | null) => patch({ ownUrl: next }),
+      addOwnUrl: () => {
+        const domain = toDomain(store.ownUrl ?? '');
+        if (domain) session.addSource(domain);
+        patch({ ownUrl: null, sourcesTouched: true });
+      },
+      showAllSuggestions: () => patch({ allSuggestions: true }),
+      startScan: () => {
+        session.runSearch(query.trim());
+        setStoredDraft(null);
+        AsyncStorage.removeItem(DRAFT_KEY).catch(() => {});
+        patch({ screen: 'live' });
+      },
+      editSearch: () => patch({ screen: 'sources', sourcesTouched: true }),
+      retry,
+      /** Every failure carries its own fix: paste a URL, pick a match, or run it again. */
+      fix: (source: SourceView) => {
+        if (source.kind === 'no-results') patch({ fixDomain: source.domain, fixUrl: '', screen: 'fix' });
+        else if (source.kind === 'weak-match') openConfirm(source.domain);
+        else retry();
+      },
+      openConfirm,
+      choose: (index: number) => patch({ chosen: index }),
+      confirm: (index: number) => {
+        session.confirmCandidate(index);
+        patch({ screen: 'live' });
+      },
+      skipSite: () => {
+        session.discardConfirmSource();
+        patch({ screen: 'live' });
+      },
+      setFixUrl: (next: string) => patch({ fixUrl: next }),
+      useUrl: () => {
+        const url = store.fixUrl.trim();
+        // A pasted URL often arrives without its scheme; the pipeline needs one to fetch it.
+        if (store.fixDomain && url) session.retryWithUrl(query.trim(), store.fixDomain, /^https?:\/\//i.test(url) ? url : `https://${url}`);
+        patch({ screen: 'live', fixDomain: null });
+      },
+      drop: (domain: string) => {
+        session.dropSource(domain);
+        patch({ screen: 'live', fixDomain: null });
+      },
+      save: () => {
+        session.saveCurrentSearch(query.trim());
+        patch({ screen: 'saved' });
+      },
+      checkSaved: session.checkSaved,
+      checkAllSaved: session.checkAllSaved,
+      openCategory: store.openCategory,
+      addPreset: () => {
+        PRESET_CATEGORIES.find((category) => category.id === store.presetCategory)?.domains.forEach(session.addSource);
+        patch({ screen: 'sources', sourcesTouched: true });
+      },
+      openAlert: (alert: AlertView) => {
+        patch({ read: [...read, alert.id] });
+        if (alert.kind === 'drop') return go('saved');
+        if (alert.kind === 'no-results' && alert.domain) return patch({ fixDomain: alert.domain, fixUrl: '', screen: 'fix' });
+        if (alert.kind === 'weak-match' && alert.domain) return openConfirm(alert.domain);
+        retry();
+      },
     };
-  }, [
-    state,
-    session,
-    noBackend,
-    auth.phase,
-    auth.isGuest,
-    auth.user?.email,
-    runSearch,
-    resetSources,
-    backToSourcesFromLive,
-    confirmMatches,
-    openConfirm,
-    saveCurrentSearch,
-    checkAll,
-    addPresetSources,
-    setScreen,
-  ]);
+  }, [go, patch, session, setSources, query, read, draft, searchId, store.ownUrl, store.fixDomain, store.fixUrl, store.presetCategory, store.openCategory]);
+
+  const alertDot = unread.some((alert) => alert.kind !== 'drop')
+    ? SiftColors.ember
+    : unread.length > 0
+      ? SiftColors.mint
+      : undefined;
+
+  const topIcons: TopIcon[] = [
+    { name: 'bell', label: 'Alerts', onPress: () => go('alerts'), dot: alertDot },
+    { name: 'bookmark', label: 'Watchlist', onPress: () => go('saved') },
+    { name: 'sliders', label: 'Account and settings', onPress: () => go('account') },
+  ];
 
   return {
-    state,
-    ...derived,
-    actions: {
-      setScreen,
-      runSearch,
-      addSourceFromInput,
-      removeSource,
-      setInput,
-      setQuery,
-      chooseRecent,
-      selectTile,
-      closeListing,
-      chooseCandidate,
-      openConfirm,
-      confirmMatches,
-      discardConfirmSource,
-      dismissNote,
-      toggleArchive,
-      toggleAccount,
-      toggleLinks,
-      openRetry,
-      closeRetry,
-      openDiscard,
-      closeDiscard,
-      submitRetryUrl,
-      saveCurrentSearch,
-      checkItem,
-      checkAll,
-      openSaved,
-      openPresets,
-      openCategory,
-      addPresetSources,
-    },
+    ...store,
+    noBackend: !hasBackend,
+    isGuest: auth.isGuest,
+    accountEmail: auth.user?.email ?? null,
+    session,
+    suggestions,
+    known,
+    needs,
+    unread,
+    draft,
+    inProgress,
+    finished,
+    topIcons,
+    actions,
   };
 }
 

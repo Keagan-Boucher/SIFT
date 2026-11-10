@@ -3,32 +3,32 @@
  * these, so no view component ever handles a raw Firestore document.
  */
 
-import type { SourceStatus } from '@/components/sift/SourceChip';
+/** KNOWN means the registry already holds a trusted template, before any run. */
+export type SourceStatus = 'PENDING' | 'KNOWN' | 'RESOLVING' | 'RESOLVED' | 'BLOCKED' | 'FAILED';
+
+/** One error taxonomy, shared by row state, the alert list and any future push payload. */
+export type ErrorKind = 'blocked' | 'no-results' | 'weak-match' | 'timeout';
+
+/** Where a search is up to. Written on every transition; the resume pointer and the tracker's source. */
+export type Step = 'sources' | 'scan' | 'confirm' | 'compare';
 
 export interface SourceView {
   domain: string;
   status: SourceStatus;
-  /** Why a source is BLOCKED or failed, surfaced in the alert log. */
   reason?: string;
+  /** Set when the source needs the user. */
+  kind?: ErrorKind;
 }
 
 export interface TileView {
-  retailer: string;
   domain: string;
-  tier: 1 | 2 | 3 | 4 | 5;
-  /** 1 to 4 badge, derived from match confidence. */
-  confidence: number;
+  title: string;
   price: string;
   value: number;
-  lowest?: boolean;
-  /** How many candidates this source returned, shown when a match is unconfirmed. */
-  count?: number;
-  /** True when confidence fell below the confirm threshold. */
-  issue?: boolean;
-  title: string;
+  lowest: boolean;
+  /** Confidence fell below the threshold and the user should pick. */
+  issue: boolean;
   url: string;
-  method: string;
-  stock: string;
 }
 
 export interface CandidateView {
@@ -45,28 +45,30 @@ export interface SavedItemView {
   name: string;
   value: number;
   sources: number;
-  dropTo: number | null;
   checked: boolean;
   justDropped: boolean;
   lastChecked: string | null;
   wasValue?: number;
 }
 
-export interface NoteView {
+/** One inbox entry. Errors and price drops share the list. */
+export interface AlertView {
   id: string;
-  kind: 'block' | 'prompt' | 'drop';
+  kind: ErrorKind | 'drop';
   domain?: string;
-  heading: string;
-  body: string;
-  /** True for a FAILED (not BLOCKED) source: pasting its search URL directly could fix it. */
-  retryable?: boolean;
+  message: string;
+  /** Epoch millis, when known. */
+  at: number | null;
 }
 
-export interface RecentView {
-  /** Search document id. The same query can be run any number of times, so the name is not a key. */
+/** A past or unfinished search, for the home screen. */
+export interface SearchSummary {
   id: string;
-  name: string;
-  meta: string;
-  /** Domains that run used, so tapping it can stage them again. */
+  query: string;
+  step: Step;
+  finished: boolean;
+  lowest: number | null;
   sources: string[];
+  /** Epoch millis the search was created, when the server timestamp has landed. */
+  at: number | null;
 }
