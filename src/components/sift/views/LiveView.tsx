@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { ListingSheet } from '@/components/sift/ListingSheet';
 import { Screen } from '@/components/ui/Screen';
 import { Banner, Heading, Meter, Row, Stat, Tag } from '@/components/ui/kit';
 import { SiftColors, SiftType } from '@/constants/sift-theme';
@@ -7,7 +9,7 @@ import type { SiftFlow } from '@/hooks/use-sift-flow';
 import { useOrientation } from '@/hooks/use-orientation';
 import { fmtPrice } from '@/lib/format-price';
 import { ERROR_COPY } from '@/lib/map-to-view';
-import type { SourceView } from '@/types/view';
+import type { SourceView, TileView } from '@/types/view';
 
 /** A source that needs the user: ember dot, the reason, and its fix as an outlined tag. */
 export function FailedRow({ source, onFix, last }: { source: SourceView; onFix: (source: SourceView) => void; last?: boolean }) {
@@ -30,6 +32,7 @@ export function LiveView({ flow }: { flow: SiftFlow }) {
   const { query, session, needs, topIcons, actions } = flow;
   const landscape = useOrientation() === 'landscape';
   const { sources, tiles, running } = session;
+  const [detail, setDetail] = useState<TileView | null>(null);
 
   const priced = tiles.filter((tile) => !tile.issue);
   const lowest = priced.length > 0 ? Math.min(...priced.map((tile) => tile.value)) : null;
@@ -48,6 +51,8 @@ export function LiveView({ flow }: { flow: SiftFlow }) {
           title={source.domain}
           subtitle={tile.title}
           last={last}
+          onPress={() => setDetail(tile)}
+          accessibilityLabel={`${source.domain}, ${tile.price}, show listing`}
           right={<Text style={[styles.price, { color: tile.lowest ? SiftColors.mint : SiftColors.text }]}>{tile.price}</Text>}
         />
       );
@@ -102,6 +107,7 @@ export function LiveView({ flow }: { flow: SiftFlow }) {
         />
       )}
       <View>{rows}</View>
+      <ListingSheet tile={detail} onClose={() => setDetail(null)} />
     </Screen>
   );
 }

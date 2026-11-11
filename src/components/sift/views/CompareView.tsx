@@ -1,5 +1,7 @@
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { ListingSheet } from '@/components/sift/ListingSheet';
 import { FailedRow } from '@/components/sift/views/LiveView';
 import { Screen } from '@/components/ui/Screen';
 import { Banner, Heading, Label, Meter, Row } from '@/components/ui/kit';
@@ -8,6 +10,7 @@ import type { SiftFlow } from '@/hooks/use-sift-flow';
 import { useOrientation } from '@/hooks/use-orientation';
 import { fmtPrice } from '@/lib/format-price';
 import { countWord } from '@/lib/map-to-view';
+import type { TileView } from '@/types/view';
 
 /** Brand names are usually the first word, and the part retailers list most inconsistently. */
 function shorterQuery(query: string): string | null {
@@ -23,6 +26,7 @@ export function CompareView({ flow }: { flow: SiftFlow }) {
   const { query, session, needs, topIcons, actions } = flow;
   const landscape = useOrientation() === 'landscape';
   const back = { label: 'Scan', onPress: () => actions.go('live') };
+  const [detail, setDetail] = useState<TileView | null>(null);
 
   const priced = session.tiles.filter((tile) => !tile.issue).sort((a, b) => a.value - b.value);
   const total = session.sources.length;
@@ -106,8 +110,8 @@ export function CompareView({ flow }: { flow: SiftFlow }) {
               key={tile.domain}
               title={tile.domain}
               subtitle={tile.title}
-              onPress={() => Linking.openURL(tile.url).catch(() => {})}
-              accessibilityLabel={`${tile.domain}, ${tile.price}, open listing`}
+              onPress={() => setDetail(tile)}
+              accessibilityLabel={`${tile.domain}, ${tile.price}, show listing`}
               last={index === priced.length - 1 && needs.length === 0}
               right={
                 <View style={styles.right}>
@@ -124,6 +128,7 @@ export function CompareView({ flow }: { flow: SiftFlow }) {
       </View>
 
       {!landscape && lessonText}
+      <ListingSheet tile={detail} onClose={() => setDetail(null)} />
     </Screen>
   );
 }
