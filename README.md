@@ -28,6 +28,7 @@
 ## Table of contents
 
 - [Project overview](#project-overview)
+- [Screens](#screens)
 - [Walkthrough](#walkthrough)
 - [Features](#features)
 - [How it works](#how-it-works)
@@ -57,7 +58,8 @@ SIFT inverts that. The user supplies the retailer sites they actually care about
 | **User-supplied sources** | No fixed retailer list. Paste a domain and SIFT attempts it.                                                                                             |
 | **Real-time streaming**   | Prices appear one at a time as each source resolves, driven by Firestore listeners rather than a refresh button.                                         |
 | **Honest confidence**     | Every result carries an extraction tier and a match confidence. Low-confidence matches go to a confirm step instead of quietly being wrong.              |
-| **Price literacy**        | The dashboard shows spread, history and where each retailer sits on the ladder, so the user learns what a good price is rather than just being told one. |
+| **Price literacy**        | The compare screen shows the band from lowest to highest, the spread and where each retailer sits in it, so the user learns what a good price is rather than just being told one. |
+| **Save and resume**       | Leave at any step and pick the search up from the home screen. The scan carries on server-side while the app is closed.                                  |
 | **Landscape-first**       | Comparison is a horizontal problem. The core screens are designed for landscape, with a portrait layout for smaller devices.                             |
 
 ### Design constraints
@@ -66,15 +68,57 @@ The project is built against three fixed inspiration cards, and every major deci
 
 | Card               | Drawn                 | How SIFT answers it                                                                                                   |
 | ------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Goal theme         | **Learn Something**   | Spread analysis, price history, tier and confidence badges. The user learns how to read a price, not just what it is. |
-| Device interaction | **Real-Time Data**    | Firestore listeners stream scrape results and price drops as they happen.                                             |
-| Constraint         | **Landscape Support** | A landscape rail plus content layout, with a portrait header for smaller devices. Rotation is allowed, not locked.    |
+| Goal theme         | **Learn Something**   | The price band, spread, match confidence and one plain sentence on how to read them. The user learns how to read a price, not just what it is. |
+| Device interaction | **Real-Time Data**    | Firestore listeners fill in scan rows and price drops as they happen.                                                 |
+| Constraint         | **Landscape Support** | A two-column landscape layout, title on the left and results on the right, stacking to one column in portrait. Rotation is allowed, not locked. |
+
+---
+
+## Screens
+
+The interface is built from the **Screen preview v2** page of the SIFT Figma file. These mockups are the real React Native views rendered on web with sample data, at phone sizes (390 × 844 portrait, 844 × 390 landscape). Every screen inside a search carries the four-step tracker: Sources, Scan, Confirm, Compare.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="docs/mockups/01-home.png" width="200" alt="Home screen with a resume card"><br><sub><b>01 Home</b> · resume where you left off</sub></td>
+<td align="center" width="33%"><img src="docs/mockups/02-new-search.png" width="200" alt="New search with suggested sites"><br><sub><b>02 New search</b> · suggested sites, each with a reason</sub></td>
+<td align="center" width="33%"><img src="docs/mockups/12-presets.png" width="200" alt="Presets with one category open"><br><sub><b>12 Presets</b> · curated source bundles</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/mockups/03-confirm-match.png" width="200" alt="Confirm match candidates"><br><sub><b>03 Confirm match</b> · pick the right listing</sub></td>
+<td align="center"><img src="docs/mockups/06-weak-match.png" width="200" alt="Weak match, skip this site"><br><sub><b>06 Weak match</b> · skipping is the safe default</sub></td>
+<td align="center"><img src="docs/mockups/07-site-failed.png" width="200" alt="Site failed, paste a search URL"><br><sub><b>07 Site failed</b> · paste a search URL once</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/mockups/13-compare-portrait.png" width="200" alt="Compare in portrait"><br><sub><b>Compare</b> · portrait</sub></td>
+<td align="center"><img src="docs/mockups/11-no-results.png" width="200" alt="No results with a cause per source"><br><sub><b>11 No results</b> · a cause and fix per source</sub></td>
+<td align="center"><img src="docs/mockups/09-alerts.png" width="200" alt="Alerts inbox"><br><sub><b>09 Alerts</b> · errors and price drops in one inbox</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/mockups/14-watchlist.png" width="200" alt="Watchlist with a price drop"><br><sub><b>Watchlist</b> · drops in mint</sub></td>
+<td align="center"><img src="docs/mockups/16-onboarding.png" width="200" alt="Onboarding tour"><br><sub><b>Onboarding</b> · three-card tour</sub></td>
+<td align="center"><img src="docs/mockups/17-auth.png" width="200" alt="Log in screen"><br><sub><b>Auth</b> · log in, sign up or continue as guest</sub></td>
+</tr>
+</table>
+
+Landscape is where comparison earns its keep: the title, tracker and running totals sit in a left column and the results take the rest.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/mockups/04-scanning-landscape.png" alt="Scanning in landscape"><br><sub><b>04 Scanning</b> · rows fill in as each site answers</sub></td>
+<td align="center" width="50%"><img src="docs/mockups/08-scanning-errors-landscape.png" alt="Scanning with errors in landscape"><br><sub><b>08 Scanning · errors</b> · failures are row state with an inline fix</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/mockups/05-compare-landscape.png" alt="Compare in landscape"><br><sub><b>05 Compare</b> · the band, the spread and one lesson</sub></td>
+<td align="center"><img src="docs/mockups/10-compare-partial-landscape.png" alt="Partial compare in landscape"><br><sub><b>10 Compare · partial</b> · a thin sample says so</sub></td>
+</tr>
+</table>
 
 ---
 
 ## Walkthrough
 
-A recorded run through the app: adding sources, watching results stream in, confirming a match and reading the dashboard.
+A recorded run through the app: adding sources, watching results stream in, confirming a match and reading the results. The recording predates the redesign, so the screens above are the current interface; the flow it shows is unchanged.
 
 <div align="center">
 
@@ -90,29 +134,32 @@ If the player does not load, [download the walkthrough](WalkthroughVideo.mp4) (~
 
 ### Implemented
 
-- **Source management.** Add retailer domains, see per-source status (`PENDING`, `KNOWN`, `RESOLVED`, `BLOCKED`, `FAILED`) and remove sources that cannot be scraped. A domain already solved in the shared registry is flagged `KNOWN` before the search runs, so the user knows it needs no resolving.
-- **Source presets.** A curated category menu, reached from the toolbar beside `SAVED`. Categories cascade open to the domains they hold, and `ADD SOURCES` stages the lot into `//SOURCES` in one tap. Curated by hand in [`src/lib/presets.ts`](src/lib/presets.ts).
-- **Live results stream.** Result tiles arrive one per source as each resolves, with a scanning sweep and animated running dots while the pipeline works.
-- **Confirm matches.** When match confidence drops below threshold, the user picks the right listing from candidate cards instead of getting the wrong product. If nothing a source returned is right, it can be discarded from the run behind a confirmation prompt, leaving every other source untouched.
-- **Results grid.** Every resolved listing with price, retailer, extraction tier and confidence, lowest price flagged.
-- **Spread dashboard.** Price ladder, spread percentage, history bars and insight cards. Every axis point and ladder row opens its listing detail, and the listing's URL opens the product in the device browser.
-- **Saved searches.** Watch a search, check it for movement and get a price-drop note when it falls. Past searches list one row per run, and tapping one restores its query and restages the domains it used.
-- **Alert log.** Blocked sources, confirm prompts and price drops surface as dismissible banners and archive to a session log.
-- **Landscape and portrait layouts.** A vertical rail in landscape, a compact header bar in portrait, switched on `useWindowDimensions`. Landscape also hides the Android status and navigation bars, so the rail owns the edge rather than sharing it with system chrome.
-- **Splash and auth gate.** A boot screen runs the scan sweep while Firebase restores a persisted session, times out rather than hanging on an unreachable backend, and hands off to a login/signup gate or straight into the app.
+- **Save and resume.** Every search records the step it is on (`sources`, `scan`, `confirm`, `compare`) on each transition. The home screen leads with the most recent unfinished search, its lowest price so far and a `Resume` button that lands on that step. A search typed but never started is kept on the device as a draft.
+- **Recommended sources.** Typing a product guesses a category from the preset keywords and ranks domains by whether the registry already knows the site, whether it is in that preset and whether the user has priced something similar there. The top three arrive selected, each with a one-line reason ("Page layout already known", "You priced Logitech G502 here 2 days ago"). The rest sit behind `Show n more`, and `+ Own URL` adds any other retailer. Ranking lives in [`src/lib/recommend.ts`](src/lib/recommend.ts).
+- **Source presets.** Curated category bundles, reached from `Presets` on the new search screen. One category opens at a time, each domain marked `READY` if the registry knows its layout or `FIRST RUN` if not, and `Add n sources` stages the lot. Curated by hand in [`src/lib/presets.ts`](src/lib/presets.ts).
+- **Live scanning.** One row per source, filling in from the Firestore listener as each resolves: a meter while it works, the product title and price once it lands, the cheapest so far in mint. A side column counts `REPORTED` and `NEEDS YOU`.
+- **Confirm matches.** When match confidence drops below threshold, the user picks the right listing from candidate cards instead of getting the wrong product. When every candidate is weak, `Skip this site` becomes the primary action, since a bad match drags the whole spread down.
+- **Compare.** Every priced listing on one line each: retailer, product title, a meter showing where the price sits in the band, and the price. The header gives the range and spread percentage, and one sentence teaches how to read it. Tapping a row opens the listing sheet, which opens the product in the device browser.
+- **Honest partial results.** Failed sources stay visible as rows on the compare screen, with a banner saying how many of the sources were compared. When nothing comes back at all, the screen lists the cause per source and suggests a shorter product name.
+- **One error taxonomy.** `blocked`, `no-results`, `weak-match` and `timeout`, shared by scan rows, the banner and alerts. Each failure is row state, never a modal, and carries its own fix as an outlined tag: `RETRY`, `PASTE URL` or `PICK`.
+- **Watchlist.** Save a comparison to watch its lowest price. A drop shows in mint with the old price beside it, and `Check all now` rechecks every item.
+- **Alerts inbox.** Errors from the current run and watched price drops share one list, ember for problems and mint for drops. Unread items carry a dot and an action tag, and the bell in the top bar shows a dot while anything is unread.
+- **Landscape and portrait layouts.** In landscape, every screen splits into a left column (title, tracker, running totals or the price lesson) and a main column with the action bar beneath it. In portrait the same blocks stack, with a floating action bar holding the one primary button. Layout follows the window shape. Landscape also hides the Android status and navigation bars.
+- **Splash, auth and onboarding.** A boot screen waits while Firebase restores a persisted session, times out rather than hanging on an unreachable backend, and hands off to the login/signup gate or straight into the app. New users get a three-card tour, replayable from the account screen.
 - **Extraction pipeline.** JSON-LD, Open Graph, microdata and heuristic HTML parsing, covered by unit tests against real and synthetic fixtures.
 - **Headless rendering fallback.** A client-rendered storefront is rendered in a real headless Chromium browser before the same parsers run against the result, reached only once the plain-fetch tiers have both failed.
 - **Full resolution cascade.** Registry lookup, generic search-form discovery, platform fingerprinting for nine ecommerce platforms, and a user-pasted search URL as the last resort. Everything discovered is written back to the shared registry.
-- **Paste-a-search-URL recovery.** A `FAILED` source's alert carries a `PASTE URL` action. The pasted URL is staged rather than fired immediately, so every failed source can be given one before a single retry runs, and the staged set is collapsed behind its own `LINKS [n]` panel in the action bar.
+- **Paste-a-search-URL recovery.** A source whose search page could not be found carries a `PASTE URL` fix. It opens a screen asking for that retailer's search URL; `Use this URL` reruns the source with it, and the two escapes are trying the site again or dropping it and carrying on with the rest.
 - **Match confidence scoring.** Query tokens containing digits are weighted double, since those separate a variant from its siblings, and accessory listings are penalised. Below 60% the user is asked to pick.
 - **Server-side pipeline.** A Firestore trigger resolves, fetches, extracts and scores every source, four at a time with one request per host, republishing per-source state as each one lands.
 - **Politeness layer.** robots.txt is fetched and obeyed before any request, cached per origin, with per-host rate limiting and an honest user agent.
 - **Anonymous auth with guest upgrade.** A first search needs no account. An email can be attached later without changing the uid, so saved searches survive.
-- **Scheduled price rechecks.** Watched searches are rescraped nightly, each check appending a price point that the dashboard history bars read back.
+- **Scheduled price rechecks.** Watched searches are rescraped nightly, each check appending a price point and moving the watchlist's lowest price, so a drop shows up in the watchlist and alerts.
 
 ### Planned
 
 - Extraction tiers 1 and 2, official APIs and internal JSON endpoints (stubbed, per-retailer work that scales badly, so deliberately scoped out)
+- Push notifications for alerts and price drops. Needs `expo-notifications` and FCM/APNs credentials through EAS; today alerts show in-app only
 - Submission to the App Store and Play Store. EAS build profiles exist in `eas.json`; no store build has been submitted
 
 ---
@@ -238,8 +285,9 @@ Two details matter more than they look:
 | State           | Zustand                                        | Small store, no Redux boilerplate                                           |
 | Orientation     | expo-screen-orientation                        | Rotation explicitly unlocked, with `useWindowDimensions` driving layout switching |
 | Typography      | Big Shoulders Display, JetBrains Mono, Archivo | Display, data and longform roles kept visually distinct                     |
-| Graphics        | react-native-svg, expo-linear-gradient         | Dot matrix, sweeps, ladders and charts                                      |
-| Motion          | react-native-reanimated 4                      | Scan sweep and streaming transitions                                        |
+| Graphics        | react-native-svg                               | The SIFT mark and a small set of filled geometric icons                     |
+| Motion          | react-native-reanimated 4                      | The boot screen hand-off                                                    |
+| Local drafts    | AsyncStorage                                   | A search typed but not yet started survives the app closing                 |
 | Auth            | Firebase Auth                                  | Persisted to AsyncStorage on device                                         |
 | Database        | Cloud Firestore                                | NoSQL with real-time listeners, which the Real-Time Data card demands       |
 | Backend runtime | Cloud Functions v2 on Node 20                  | Server-side scraping on the Blaze plan with a budget cap                    |
@@ -392,7 +440,7 @@ Then choose a target:
 
 | Environment                   | Command                                | Notes                                                                              |
 | ----------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
-| **Web (quickest for review)** | `npm run web`                          | Opens on http://localhost:8081. Resize the window wide to see the landscape layout |
+| **Web (quickest for review)** | `npm run web`                          | Opens on http://localhost:8081. A window wider than it is tall shows the landscape layout |
 | **Android emulator**          | `npm run android`                      | Needs Android Studio with a device image                                           |
 | **iOS simulator**             | `npm run ios`                          | macOS with Xcode only                                                              |
 | **Physical device**           | `npx expo start` then scan the QR code | Needs Expo Go and the phone on the same network                                    |
@@ -420,7 +468,7 @@ Then, with `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` in `.env`, start the app in 
 npm run web
 ```
 
-That runs the real pipeline against local Firestore, Auth and Functions. Widen the window past 768px for the landscape layout. Running `npm run web` on its own still launches the app, but with no backend behind it the screens are empty.
+That runs the real pipeline against local Firestore, Auth and Functions. Make the window wider than it is tall for the landscape layout, or use the browser's device toolbar at 390 × 844 for portrait. Running `npm run web` on its own still launches the app, but with no backend behind it the screens are empty.
 
 </details>
 
@@ -433,7 +481,7 @@ That runs the real pipeline against local Firestore, Auth and Functions. Widen t
 | Fonts render as system default                | Wait for the splash screen to finish; fonts load asynchronously through `expo-font`                                       |
 | Ports 4000, 5001, 8080 or 9099 already in use | Stop other Firebase emulators, or change the ports in `docker-compose.yml` and `firebase.json`                            |
 | Physical device cannot reach Metro            | Put the phone on the same Wi-Fi network, or run `npx expo start --tunnel`                                                 |
-| Portrait layout not appearing                 | Narrow the window below 768px on web, or rotate the device. Layout follows the window shape, not a lock                  |
+| Portrait layout not appearing                 | Make the window taller than it is wide on web, or rotate the device. Layout follows the window shape, not a lock         |
 | `firebase/auth` type error in the editor      | Known and suppressed. `getReactNativePersistence` is resolved by Metro's `react-native` export condition but not by `tsc` |
 
 </details>
@@ -442,62 +490,54 @@ That runs the real pipeline against local Firestore, Auth and Functions. Widen t
 
 ## Usage
 
-The app is a seven-screen flow, driven by the `RUN SEARCH` primary action and a persistent action bar. The bar's primary button always advances the flow, the secondary always goes back, and the status line on the right reports live state.
+Every screen has one primary action, the acid button in the action bar, with an optional ghost button beside it. The top bar carries back navigation and three icons: alerts, watchlist and account. Inside a search, the four-step tracker shows where you are.
 
 ```mermaid
 flowchart LR
-    P["Presets"] -->|ADD SOURCES| S
-    S["1. Sources"] -->|PRESETS| P
-    S -->|RUN SEARCH| L["2. Live"]
-    L -->|CONFIRM MATCHES| R["4. Results"]
-    L -->|low confidence| C["3. Confirm"]
-    C -->|CONFIRM MATCH| L
-    R -->|VIEW SPREAD| D["5. Dashboard"]
-    D -->|SAVE SEARCH| V["6. Saved"]
-    V -->|BACK| S
+    H["Home"] -->|New search| S["1. Sources"]
+    H -->|Resume| L
+    S -->|Presets| P["Presets"]
+    P -->|Add sources| S
+    S -->|Start scan| L["2. Scan"]
+    L -->|weak match| C["3. Confirm"]
+    L -->|no search results| F["Site failed"]
+    F -->|Use this URL| L
+    C -->|Confirm or skip| L
+    L -->|Compare n results| R["4. Compare"]
+    R -->|Save to watchlist| W["Watchlist"]
 ```
 
-### 1. Add sources
+### Home
 
-Type a product query, then add the retailer domains to search. Pasted URLs are stripped back to the bare domain. Each source shows its status: a domain the registry has already solved reads `KNOWN` straight away, and a `BLOCKED` source must be removed before the search can run.
+The searches screen. An unfinished search sits at the top as a card with its lowest price so far, the tracker and `Resume`, which opens the step it was left on. Earlier searches follow as rows with their lowest price: three shown, the rest behind `Show n more`. A search that was typed but never started comes back here as a draft.
 
-Sources can also come from a preset. The toolbar beside the content is split in two, `SAVED` and `PRESETS`. The second opens a curated category menu that cascades open to the domains it holds, and `ADD SOURCES` stages them all and returns here. A preset merges into whatever is already staged rather than replacing it.
+### 1. Sources
 
-Past searches list one row per run, newest first. Tapping one restores its query and restages the domains that run used.
+Type a product. SIFT suggests where to look, three sites pre-selected, each with the reason it was picked. Tap a row to add or remove it, `Show n more` for the rest of the ranking, `Presets` for a curated bundle and `+ Own URL` for any other retailer. Pasted URLs are stripped back to the bare domain.
 
-### 2. Live results
+### 2. Scan
 
-Result tiles stream in one per source as it resolves. Running dots animate while the pipeline works, the status line counts resolved sources and reports `LIVE`, and any tile that matched below confidence threshold is flagged for review. Selecting a tile opens its listing detail: URL, resolution method, stock, price position relative to the lowest, and the confidence score out of four.
+Rows fill in one per source as the pipeline answers: a meter while it works, then the product title and price. Leave at any point; the scan keeps running server-side and the home screen picks it up. A source that needs you turns ember with its reason and fix, and a banner counts how many need attention before the compare. Tapping a priced row opens its listing sheet.
 
-A source that could not be read reports why, and its alert offers `PASTE URL`: search that retailer yourself, paste the URL of its results page, and the route is staged rather than retried on the spot. Several failed sources can each be given one, reviewed in the `LINKS [n]` panel, and picked up together by a single `RETRY SEARCH`. A pasted route that works is written back to the registry, so the domain resolves on its own from then on.
+### 3. Confirm
 
-### 3. Confirm matches
+Where confidence was low, the closest listings from that site are shown as cards with title, price and match percentage. Pick one and confirm. When all of them are weak matches, skipping the site is the primary action and using the best of them is the ghost.
 
-Where confidence was low, candidate listings are shown side by side with title, price and confidence. Picking one rewrites that tile in place and clears the review prompt into the alert log. This is what stops the app confidently comparing the wrong product.
+### Site failed
 
-If none of them is the product, that source can be discarded from the run behind a confirmation prompt. Every other source and its price is left alone.
+When a site's search page could not be found, paste the URL of its results page. A route that works is written back to the shared registry, so the domain resolves on its own for everyone from then on. Otherwise try the site again or drop it and carry on.
 
-### 4. Results
+### 4. Compare
 
-Every resolved listing in one grid, lowest price flagged, each tile carrying its extraction tier and confidence badge. Tapping a tile opens its listing detail.
+The range, from the lowest price in mint to the highest, and the spread between them. Each retailer is one row, its meter full at the bottom of the band and shrinking toward the top. One sentence carries the Learn Something goal: buy near the bottom of the band, not at the single lowest number. When some sources failed, they stay in the list and the sentence warns that a thin sample may hide a lower price.
 
-### 5. Dashboard
+### Watchlist and alerts
 
-The spread view. A price ladder positions every retailer between cheapest and dearest, the spread percentage quantifies the gap, history bars show recent movement and insight cards explain what the numbers mean. This screen carries the Learn Something goal.
-
-In landscape the ladder becomes a number line. Points are placed by value, then swept apart so that two retailers a rand apart never draw over each other ([`src/lib/spread-layout.ts`](src/lib/spread-layout.ts)). Tapping any point or ladder row opens the listing behind it, and the URL in that panel opens the product in the device browser.
-
-### 6. Saved searches
-
-Watch a search and check it later. If the price has fallen, the item shows its old and new value and a `PRICE_DROP` note appears with the percentage. `CHECK ALL` runs every watched item at once.
-
-### Alerts
-
-Blocked sources, confirm prompts and price drops appear as banners tagged by sigil: `//` informational, `>` action needed, `!` problem. Dismissing a banner archives it to the session alert log, reachable from the action bar.
+`Save to watchlist` keeps a comparison's lowest price under watch, rechecked nightly or on demand with `Check all now`. Alerts collect the current run's failures and any watched price drops in one list, each with the action that resolves it.
 
 ### Landscape support
 
-In landscape a 56px vertical rail carries the screen name, a tick per staged source and the account button, with the split `SAVED` / `PRESETS` strip beside it. Android's status and navigation bars are hidden in landscape, so the rail sits against the edge rather than sharing it with system chrome. In portrait that collapses to a horizontal header bar carrying the same account button, and the content reflows to a single column. Layout is chosen from `useWindowDimensions`, so both orientations ship rather than one being locked out.
+In landscape, each screen splits into a 230 px left column with the title, tracker and running totals, and a main column holding the rows and the action bar. Android's status and navigation bars are hidden in landscape. In portrait the same blocks stack into one column. Layout is chosen from `useWindowDimensions`, so both orientations ship rather than one being locked out.
 
 ---
 
@@ -528,6 +568,9 @@ erDiagram
         array sources "domain status method reason"
         map userSearchUrls "domain to pasted search URL"
         number resolvedCount
+        string step "sources scan confirm compare, the resume pointer"
+        Timestamp stepUpdatedAt
+        number lowestPrice "lowest seen so far, for the home screen"
         Timestamp createdAt
         Timestamp updatedAt
     }
@@ -575,7 +618,7 @@ erDiagram
     }
 ```
 
-Security rules in [`firestore.rules`](firestore.rules) scope `users`, `searches` and `savedSearches` to their owner. A search is create-then-read-only for the client, since everything after creation is written by the pipeline. `listings` are readable only by the owner of their parent search and never client-writable, so the confirm step has to go through the callable. `retailerTemplates` are readable by any signed-in user, because that is the point of write-back: a site solved once is solved for everyone after.
+Security rules in [`firestore.rules`](firestore.rules) scope `users`, `searches` and `savedSearches` to their owner. A search is created by the client, which may afterwards update only its resume pointer (`step`, `stepUpdatedAt`) and `lowestPrice`; everything else about the run is written by the pipeline. `listings` are readable only by the owner of their parent search and never client-writable, so the confirm step has to go through the callable. `retailerTemplates` are readable by any signed-in user, because that is the point of write-back: a site solved once is solved for everyone after.
 
 Four composite indexes back the queries that need them: listings sorted by price within a search, a user's searches newest first, a user's saved searches by last update, and the price history series in observation order.
 
@@ -600,13 +643,13 @@ npm test --prefix functions
 
 The pipeline suite runs without Firebase, which also proves the registry degrades rather than throwing when Firestore is unavailable.
 
-The one piece of frontend logic with a failure mode you cannot see by looking at it, the spread axis placement, carries its own runnable check:
+The one piece of frontend logic with a failure mode you cannot see by looking at it, the recommended-sources ranking, carries its own runnable check:
 
 ```bash
-npx tsx src/lib/spread-layout.check.ts
+npx tsx src/lib/recommend.check.ts
 ```
 
-It asserts that no two points overlap when prices bunch at either end of the range, when several are identical, and that value order survives the nudging.
+It asserts the category guess, the ranking order and the reason shown beside each suggested site.
 
 ### Smoke-testing the deployed backend
 
@@ -645,9 +688,12 @@ SIFT/
 │   ├── app/                   Expo Router screens
 │   │   ├── index.tsx          Splash and boot sequence
 │   │   ├── auth.tsx           Login and signup gate
-│   │   └── app.tsx            The seven-screen shell, rail and action bar
-│   ├── components/sift/       29 design-system components
-│   │   └── views/             The seven screen views
+│   │   ├── onboarding.tsx     Three-card tour
+│   │   └── app.tsx            The app shell: picks which view is showing
+│   ├── components/
+│   │   ├── ui/                Primitives: Screen, top bar, action bar, tracker, row, meter, tag, banner, icons
+│   │   └── sift/              SIFT mark, listing sheet
+│   │       └── views/         The ten screen views
 │   ├── constants/
 │   │   └── sift-theme.ts      Design tokens, single source of truth
 │   ├── hooks/
@@ -662,7 +708,7 @@ SIFT/
 │   │   ├── map-to-view.ts     Firestore documents to view models
 │   │   ├── registry.ts        Is this domain already solved for everyone?
 │   │   ├── presets.ts         Curated source categories, hand-maintained
-│   │   └── spread-layout.ts   Non-overlapping point placement, with its check
+│   │   └── recommend.ts       Suggested sites and their reasons, with its check
 │   ├── store/                 Zustand flow store (UI state only)
 │   └── types/                 Firestore document types and view model types
 ├── functions/src/
@@ -683,19 +729,27 @@ SIFT/
 
 ### Design system
 
-Every colour, size, font and duration comes from [`src/constants/sift-theme.ts`](src/constants/sift-theme.ts). Components never hardcode a hex or a pixel value.
+The interface follows the **Screen preview v2** page of the SIFT Figma file. Every colour, size and font comes from [`src/constants/sift-theme.ts`](src/constants/sift-theme.ts).
 
-| Token group   | Contents                                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------------------------- |
-| `SiftColors`  | Neutrals (`void`, `carbon`, `slate`, `graphite`, `bone`) and signals (`mint`, `acid`, `ember`, `current`) |
-| `SiftTier`    | Tier-to-colour mapping, so extraction quality is legible at a glance                                      |
-| `SiftType`    | Display, price, body, title, label and annotation roles                                                   |
-| `SiftSpacing` | A 4px scale plus rail, strip and prompt-bar dimensions                                                    |
-| `SiftRadius`  | Fixed at `0`. A hard rule, never overridden                                                               |
-| `SiftMotion`  | Instant, snap, sweep and sequence durations with a shared entry easing                                    |
-| `SiftMatrix`  | Dot matrix pitch and density presets                                                                      |
+| Token group      | Contents                                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| `SiftColors`     | A grey ramp (`canvas`, `surface`, `surfaceHi`, `hairline`, `text`, `textDim`, `textMute`) and three accents |
+| `SiftFontFamily` | Big Shoulders Display for titles, JetBrains Mono for data and labels, Archivo for prose                     |
+| `SiftType`       | Title, label, data, price, body and small roles                                                            |
+| `SiftSpacing`    | A 4px scale, `s1` to `s7`                                                                                  |
+| `SiftRadius`     | Fixed at `3` on every surface, control and bar                                                             |
 
-Status is never carried by colour alone. Every tier badge, source chip and alert banner also carries a text label or sigil.
+Three accents, each with one job:
+
+| Colour | Hex | Meaning |
+| --- | --- | --- |
+| Acid | `#C8F03C` | The user's action. One filled button per screen, nothing else |
+| Mint | `#3FE383` | The app talking: completed steps, the lowest price, a confirmed match, a focused input |
+| Ember | `#F0552E` | Breakage only: a dot, the reason text, an outlined fix tag, a banner border |
+
+No gradients, no glows, no coloured shadows; the only shadow is under the portrait action bar. Lists are rows separated by hairlines, and a card appears only where elevation means something, such as the resume card or a selected candidate. Prices are always set in JetBrains Mono Bold so columns of figures line up, and product titles in Archivo because they are names, not data.
+
+Status is never carried by colour alone. Every failed row, tag and banner also carries its reason in words.
 
 ---
 
@@ -704,7 +758,11 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Area                                     |        State         |
 | ---------------------------------------- | :------------------: |
 | Design system and tokens                 |       Complete       |
-| Seven screens, landscape and portrait    |       Complete       |
+| Redesign to Screen preview v2, landscape and portrait | Complete |
+| Save and resume                          |       Complete       |
+| Recommended sources                      |       Complete       |
+| Error taxonomy and inline fixes          |       Complete       |
+| Push notifications for alerts            |       Planned        |
 | Flow state machine and Zustand store     |       Complete       |
 | Resolution methods A to D                |   Complete, tested   |
 | Extraction tiers 3 and 4                 |   Complete, tested   |
@@ -720,7 +778,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 | Firestore schema, rules, indexes         |       Complete       |
 | Docker emulator environment              |       Complete       |
 | EAS build profiles                       |       Complete       |
-| Paste-a-search-URL recovery and staged links | Complete         |
+| Paste-a-search-URL recovery              |       Complete       |
 | Splash, auth gate and account panel      |       Complete       |
 | Curated source presets                   | Complete. Categories are hand-maintained |
 | Extraction tiers 1 and 2                 | Future consideration |
@@ -732,7 +790,7 @@ Status is never carried by colour alone. Every tier badge, source chip and alert
 
 | Contributor                                                         | Role                        | Contributions                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Keagan Boucher** ([@KeaganCB-OW](https://github.com/KeaganCB-OW)) | Sole developer and designer | Concept and pitch, SIFT design system and tokens, all seven screens and 29 components, flow state machine, landscape and portrait layouts, Firestore schema and security rules, resolution and extraction pipelines, backend test suite, Docker emulator environment, documentation |
+| **Keagan Boucher** ([@KeaganCB-OW](https://github.com/KeaganCB-OW)) | Sole developer and designer | Concept and pitch, SIFT design system and tokens, the Screen preview v2 redesign and every screen built from it, flow state machine, landscape and portrait layouts, Firestore schema and security rules, resolution and extraction pipelines, backend test suite, Docker emulator environment, documentation |
 
 ### Contributing
 
