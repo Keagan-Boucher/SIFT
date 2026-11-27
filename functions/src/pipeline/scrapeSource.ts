@@ -11,6 +11,7 @@ import { extractCandidatesHeadless } from "../extraction/headless";
 import { relaxedQueries } from "../matching/relax";
 import { buildFromTemplate } from "../resolution/template";
 import { tokenize } from "../matching/score";
+import { pickMatch } from "../ai/search";
 
 /**
  * Each candidate URL costs a fetch, and the per-host limiter runs them one at a
@@ -99,6 +100,18 @@ export async function scrapeSource(
   // Overridable so tests can pin down the headless-fallback decision without
   // a Chromium binary, which is not available in this environment.
   headlessExtract: typeof extractCandidatesHeadless = extractCandidatesHeadless,
+): Promise<ScrapeOutcome> {
+  const outcome = await scrapeCandidates(query, rawDomain, userSearchUrl, headlessExtract);
+  // The model only reorders or re-weighs what was scraped; it never invents a listing.
+  if (outcome.ok) outcome.candidates = await pickMatch(query, outcome.candidates);
+  return outcome;
+}
+
+async function scrapeCandidates(
+  query: string,
+  rawDomain: string,
+  userSearchUrl: string | undefined,
+  headlessExtract: typeof extractCandidatesHeadless,
 ): Promise<ScrapeOutcome> {
   const domain = normaliseDomain(rawDomain);
 

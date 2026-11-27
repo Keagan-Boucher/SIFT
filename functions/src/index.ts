@@ -30,3 +30,4 @@ export { resolveListingUrl } from "./resolution";
 export { extractListing } from "./extraction";
 export { onSearchCreated, confirmMatch } from "./pipeline/runSearch";
 export { recheckSavedSearch, scheduledRecheck } from "./pipeline/recheck";
+export { understandQuery } from "./ai/search";

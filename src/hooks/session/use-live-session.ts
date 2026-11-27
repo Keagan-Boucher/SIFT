@@ -74,7 +74,9 @@ export function useLiveSession(userId: string | null): SiftSession {
   // The lowest price so far rides on the search document, so the home screen's
   // resume card and history rows need no listings query of their own. Losing
   // this write only costs that figure on the home screen, so it never errors.
-  const lowest = shown.length > 0 ? Math.min(...shown.map((listing) => listing.price)) : null;
+  // A weak match the user has not picked is not a price yet, so it never counts.
+  const trusted = shown.filter((listing) => !listing.needsConfirmation);
+  const lowest = trusted.length > 0 ? Math.min(...trusted.map((listing) => listing.price)) : null;
   const written = useRef<string | null>(null);
   useEffect(() => {
     if (!searchId || lowest === null || written.current === `${searchId}:${lowest}`) return;

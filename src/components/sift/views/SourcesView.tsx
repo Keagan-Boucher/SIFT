@@ -8,7 +8,7 @@ import { useOrientation } from '@/hooks/use-orientation';
 
 /** 02 New search. The query drives the suggested sites, so the field comes first. */
 export function SourcesView({ flow }: { flow: SiftFlow }) {
-  const { query, session, suggestions, allSuggestions, ownUrl, topIcons, actions } = flow;
+  const { query, session, suggestions, didYouMean, allSuggestions, ownUrl, topIcons, actions } = flow;
   const landscape = useOrientation() === 'landscape';
 
   const staged = new Map(session.sources.map((source) => [source.domain, source]));
@@ -39,6 +39,16 @@ export function SourcesView({ flow }: { flow: SiftFlow }) {
         autoFocus={!query}
         returnKeyType="done"
       />
+
+      {didYouMean && (
+        <Pressable
+          onPress={actions.acceptDidYouMean}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={`Did you mean ${didYouMean}? Tap to use it`}>
+          <Label color={SiftColors.mint}>{`DID YOU MEAN ${didYouMean.toUpperCase()}?`}</Label>
+        </Pressable>
+      )}
 
       <View>
         {list.length > 0 && (

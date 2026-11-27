@@ -7,7 +7,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useLiveSession } from '@/hooks/session/use-live-session';
 import { hasBackend } from '@/lib/firebase';
 import { PRESET_CATEGORIES } from '@/lib/presets';
-import { recommend } from '@/lib/recommend';
+import { recommend, type Suggestion } from '@/lib/recommend';
+import { understandQuery } from '@/lib/searches';
 import { useKnownDomains } from '@/lib/registry';
 import { useFlowStore, type Screen } from '@/store/useFlowStore';
 import type { AlertView, SearchSummary, SourceView, Step } from '@/types/view';
@@ -78,7 +79,32 @@ export function useSiftFlow() {
   );
   const candidateDomains = useMemo(() => recommend(query, past, {}).map((s) => s.domain), [query, past]);
   const known = useKnownDomains(candidateDomains);
-  const suggestions = useMemo(() => recommend(query, past, known), [query, past, known]);
+  // Typo fixing and extra retailers from the model, fetched once the user pauses typing.
+  const [ai, setAi] = useState<{ query: string; product: string; sites: Suggestion[] } | null>(null);
+  const uid = auth.user?.uid;
+  useEffect(() => {
+    const typed = query.trim();
+    if (screen !== 'sources' || searchId || !uid || !hasBackend || typed.length < 3) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      understandQuery(typed)
+        .then((result) => live && setAi({ query: typed, ...result }))
+        .catch(() => {});
+    }, 700);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [screen, searchId, uid, query]);
+  const aiForQuery = ai?.query === query.trim() ? ai : null;
+  const didYouMean =
+    aiForQuery && aiForQuery.product.toLowerCase() !== aiForQuery.query.toLowerCase() ? aiForQuery.product : null;
+
+  const suggestions = useMemo(() => {
+    const ranked = recommend(query, past, known);
+    const seen = new Set(ranked.map((s) => s.domain));
+    return [...ranked, ...(aiForQuery?.sites ?? []).filter((s) => !seen.has(s.domain))];
+  }, [query, past, known, aiForQuery]);
 
   // The top three arrive selected, and keep tracking the query until the user picks for themselves.
   const topThree = suggestions
@@ -114,6 +140,12 @@ export function useSiftFlow() {
     return {
       go,
       setQuery: (next: string) => patch({ query: next }),
+      /** Takes the corrected name. Its sites carry over so the list does not flicker while it re-checks. */
+      acceptDidYouMean: () => {
+        if (!didYouMean || !aiForQuery) return;
+        setAi({ ...aiForQuery, query: didYouMean, product: didYouMean });
+        patch({ query: didYouMean });
+      },
       newSearch: () => {
         session.resetSources();
         setStoredDraft(null);
@@ -196,7 +228,7 @@ export function useSiftFlow() {
         retry();
       },
     };
-  }, [go, patch, session, setSources, query, read, draft, searchId, store.ownUrl, store.fixDomain, store.fixUrl, store.presetCategory, store.openCategory]);
+  }, [go, patch, session, setSources, query, read, draft, searchId, store.ownUrl, store.fixDomain, store.fixUrl, store.presetCategory, store.openCategory, didYouMean, aiForQuery]);
 
   const alertDot = unread.some((alert) => alert.kind !== 'drop')
     ? SiftColors.ember
@@ -217,6 +249,7 @@ export function useSiftFlow() {
     accountEmail: auth.user?.email ?? null,
     session,
     suggestions,
+    didYouMean,
     known,
     needs,
     unread,

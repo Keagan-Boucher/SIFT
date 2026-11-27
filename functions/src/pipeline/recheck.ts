@@ -7,6 +7,7 @@ import pLimit from "p-limit";
 import { normaliseDomain } from "../net/fetchPage";
 import { CONFIRM_THRESHOLD } from "../matching/score";
 import { scrapeSource } from "./scrapeSource";
+import { GROQ_API_KEY } from "../ai/groq";
 
 const SOURCE_CONCURRENCY = 4;
 const SAVED_SEARCH_CONCURRENCY = 3;
@@ -79,7 +80,7 @@ export async function recheck(db: Firestore, snapshot: DocumentSnapshot): Promis
 export const recheckSavedSearch = onCall<{ savedSearchId: string }, Promise<RecheckResult>>(
   // 2GiB: shares scrapeSource with onSearchCreated, so it has the same peak
   // of several fetched pages plus a rendered one alongside a live Chromium.
-  { timeoutSeconds: 300, memory: "2GiB" },
+  { timeoutSeconds: 300, memory: "2GiB", secrets: [GROQ_API_KEY] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "sign in to check a saved search");
 
@@ -116,6 +117,7 @@ export const scheduledRecheck = onSchedule(
     timeZone: "Africa/Johannesburg",
     timeoutSeconds: 540,
     memory: "2GiB",
+    secrets: [GROQ_API_KEY],
   },
   async () => {
     const db = getFirestore();

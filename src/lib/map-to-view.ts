@@ -141,17 +141,19 @@ export function toAlerts(search: SearchDoc | null, listings: ListingDoc[], saved
 }
 
 /**
- * Searches from before the redesign carry no step, so the pipeline status
- * stands in: a run still going is resumable, anything settled is finished.
+ * The pipeline's own status decides whether a search is done: a run still
+ * going is resumable, anything settled is finished and opens on Compare. The
+ * client-written step only says where to resume a live run; on its own it
+ * never moves on if the user leaves before Compare, or if the write is refused.
  */
 export function toSearchSummary(search: SearchDoc): SearchSummary {
-  const running = search.status === 'pending' || search.status === 'resolving' || search.status === 'extracting';
-  const step = search.step ?? (running ? 'scan' : 'compare');
+  const finished = search.status === 'complete' || search.status === 'failed' || search.step === 'compare';
+  const step = finished ? 'compare' : (search.step ?? 'scan');
   return {
     id: search.id,
     query: search.query,
     step,
-    finished: step === 'compare',
+    finished,
     lowest: search.lowestPrice ?? null,
     at: search.createdAt?.toMillis?.() ?? null,
     // A brand-new search holds bare domains until the pipeline first writes its states back.

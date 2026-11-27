@@ -60,3 +60,6 @@ AGENTS.md
 /.claude
 !.env.example
 /.vscode
+
+# Firebase emulator secrets
+.secret.local

@@ -159,3 +159,13 @@ export async function recheckSavedSearch(savedSearchId: string): Promise<number 
   const result = await recheckCallable({ savedSearchId });
   return result.data.lowestPrice;
 }
+
+const understandCallable = httpsCallable<
+  { query: string },
+  { product: string; sites: { domain: string; reason: string }[] }
+>(functions, 'understandQuery');
+
+/** The spelling-fixed product name and AI-suggested retailers for a typed query. */
+export async function understandQuery(query: string) {
+  return (await understandCallable({ query })).data;
+}

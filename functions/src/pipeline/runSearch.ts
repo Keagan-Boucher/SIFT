@@ -8,6 +8,7 @@ import type { ScoredCandidate, SearchStatus, SourceState } from "../types";
 import { normaliseDomain } from "../net/fetchPage";
 import { confidenceBadge, needsConfirmation } from "../matching/score";
 import { scrapeSource } from "./scrapeSource";
+import { GROQ_API_KEY } from "../ai/groq";
 
 /** How many sources are worked at once. Each host is separately limited to one. */
 const SOURCE_CONCURRENCY = 4;
@@ -158,7 +159,7 @@ export const onSearchCreated = onDocumentCreated(
   // a megabyte, all while Chromium is resident. Going over does not throw, the
   // container is killed, so the function dies before it can write a status and
   // the search sits on RESOLVING forever rather than reporting a failure.
-  { document: "searches/{searchId}", timeoutSeconds: 300, memory: "2GiB" },
+  { document: "searches/{searchId}", timeoutSeconds: 300, memory: "2GiB", secrets: [GROQ_API_KEY] },
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;
