@@ -9,6 +9,7 @@ import { normaliseDomain } from "../net/fetchPage";
 import { confidenceBadge, needsConfirmation } from "../matching/score";
 import { scrapeSource } from "./scrapeSource";
 import { GROQ_API_KEY } from "../ai/groq";
+import { searchAlternates, type SearchAlternates } from "../ai/search";
 
 /** How many sources are worked at once. Each host is separately limited to one. */
 const SOURCE_CONCURRENCY = 4;
@@ -94,8 +95,9 @@ async function processSource(
   query: string,
   domain: string,
   userSearchUrl: string | undefined,
+  alternates: SearchAlternates,
 ): Promise<SourceState> {
-  const outcome = await scrapeSource(query, domain, userSearchUrl);
+  const outcome = await scrapeSource(query, domain, userSearchUrl, undefined, alternates);
   if (!outcome.ok) {
     // A source that failed before resolving has no method to report.
     return {
@@ -128,6 +130,9 @@ export async function runSearchPipeline(searchId: string, data: SearchData): Pro
   const states: SourceState[] = domains.map((domain) => ({ domain, status: "PENDING" }));
   await publishProgress(db, searchId, states, "resolving");
 
+  // One model call per search, after the tiles are up so it never delays them.
+  const alternates = await searchAlternates(data.query);
+
   const limit = pLimit(SOURCE_CONCURRENCY);
   await Promise.all(
     domains.map((domain, index) =>
@@ -135,7 +140,7 @@ export async function runSearchPipeline(searchId: string, data: SearchData): Pro
         states[index] = { domain, status: "RESOLVING" };
         await publishProgress(db, searchId, states, "extracting");
 
-        states[index] = await processSource(db, searchId, data.query, domain, data.userSearchUrls?.[domain]);
+        states[index] = await processSource(db, searchId, data.query, domain, data.userSearchUrls?.[domain], alternates);
         await publishProgress(db, searchId, states, "extracting");
       }),
     ),

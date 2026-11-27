@@ -305,3 +305,29 @@ test("scrapeSource retries with a relaxed query when the site's literal AND sear
   const searchRequests = requestedPaths.filter((p) => p.startsWith("/catalogue/results"));
   assert.equal(searchRequests.length, 2, requestedPaths.join(","));
 });
+
+test("scrapeSource retries a misspelled query with the corrected name and scores against it", async () => {
+  const productTitle = "Teenage Mutant Ninja Turtles - Prerelease Pack";
+  const page = `<!doctype html><html><body><ul class="products">
+      <li class="product"><a href="/product/tmnt-prerelease/">${productTitle}</a><span class="price">R995.00</span></li>
+    </ul></body></html>`;
+  const empty = `<!doctype html><html><body><p>No products were found matching your selection.</p></body></html>`;
+  serve({
+    resultsFor: (query) => {
+      const words = decodeURIComponent(query.replace(/\+/g, " ")).toLowerCase().split(/\s+/).filter(Boolean);
+      return words.every((word) => productTitle.toLowerCase().includes(word)) ? page : empty;
+    },
+  });
+
+  const typo = "teenge mutnt turtls prerelese";
+  assert.equal((await scrapeSource(typo, origin())).ok, false, "the typo alone finds nothing");
+
+  const outcome = await scrapeSource(typo, origin(), undefined, undefined, {
+    product: "Teenage Mutant Ninja Turtles Prerelease Pack",
+    phrasings: ["Teenage Mutant Ninja Turtles Prerelease"],
+  });
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.candidates[0].title, productTitle);
+  assert.ok(outcome.candidates[0].matchConfidence > 0.6, "scored against the corrected name, not the typo");
+});

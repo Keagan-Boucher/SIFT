@@ -11,7 +11,7 @@ import { extractCandidatesHeadless } from "../extraction/headless";
 import { relaxedQueries } from "../matching/relax";
 import { buildFromTemplate } from "../resolution/template";
 import { tokenize } from "../matching/score";
-import { pickMatch } from "../ai/search";
+import { pickMatch, type SearchAlternates } from "../ai/search";
 
 /**
  * Each candidate URL costs a fetch, and the per-host limiter runs them one at a
@@ -100,8 +100,9 @@ export async function scrapeSource(
   // Overridable so tests can pin down the headless-fallback decision without
   // a Chromium binary, which is not available in this environment.
   headlessExtract: typeof extractCandidatesHeadless = extractCandidatesHeadless,
+  alternates: SearchAlternates | null = null,
 ): Promise<ScrapeOutcome> {
-  const outcome = await scrapeCandidates(query, rawDomain, userSearchUrl, headlessExtract);
+  const outcome = await scrapeCandidates(query, rawDomain, userSearchUrl, headlessExtract, alternates);
   // The model only reorders or re-weighs what was scraped; it never invents a listing.
   if (outcome.ok) outcome.candidates = await pickMatch(query, outcome.candidates);
   return outcome;
@@ -112,6 +113,7 @@ async function scrapeCandidates(
   rawDomain: string,
   userSearchUrl: string | undefined,
   headlessExtract: typeof extractCandidatesHeadless,
+  alternates: SearchAlternates | null,
 ): Promise<ScrapeOutcome> {
   const domain = normaliseDomain(rawDomain);
 
@@ -221,11 +223,17 @@ async function scrapeCandidates(
     }
 
     // The site has a working search page, it just did not understand the query.
-    // Retailer search is a literal AND across words, so a product listed under
-    // slightly different wording returns nothing. Ask again with the least
-    // distinctive words removed, still scoring against what the user typed.
+    // Retailer search is a literal AND across words, so a typo or a product
+    // listed under different wording returns nothing. Ask again: first with
+    // the corrected name and its common phrasings, scored against the corrected
+    // name, then with the least distinctive words removed, scored against what
+    // the user typed.
     if (readablePattern && (emptyResultSet || matchedNothing)) {
-      for (const relaxed of relaxedQueries(query).slice(1)) {
+      const retries = [
+        ...(alternates?.phrasings ?? []).map((phrasing) => ({ phrasing, scoreAgainst: alternates!.product })),
+        ...relaxedQueries(query).slice(1).map((phrasing) => ({ phrasing, scoreAgainst: query })),
+      ];
+      for (const { phrasing: relaxed, scoreAgainst } of retries) {
         const url = buildFromTemplate(readablePattern, relaxed);
         let retry: FetchResult;
         try {
@@ -236,7 +244,7 @@ async function scrapeCandidates(
         }
         if (!retry.html) continue;
 
-        const candidates = extractCandidates(retry.html, url, query);
+        const candidates = extractCandidates(retry.html, url, scoreAgainst);
         if (candidates.length === 0 || candidates[0].matchConfidence < MIN_ACCEPTABLE_MATCH) continue;
 
         // Same write-back as the strict-query success path above. Missing this

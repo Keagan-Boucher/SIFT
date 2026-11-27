@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ScoredCandidate } from "../../types";
-import { applyPick, pickMatch, sanitiseUnderstanding } from "../search";
+import { applyPick, pickMatch, sanitiseAlternates, sanitiseUnderstanding } from "../search";
 
 const candidate = (title: string, matchConfidence: number) =>
   ({ title, matchConfidence, url: `https://x.co.za/${title}`, price: 1, currency: "ZAR", inStock: true, tier: 1 }) as unknown as ScoredCandidate;
@@ -36,4 +36,13 @@ test("sanitiseUnderstanding falls back to the query and drops junk domains", () 
   });
   assert.equal(result.product, "PlayStation 5");
   assert.deepEqual(result.sites, [{ domain: "takealot.com", reason: "Big range" }]);
+});
+
+test("sanitiseAlternates leads with the corrected name and drops repeats of the query", () => {
+  assert.deepEqual(sanitiseAlternates("ps5", null), { product: "ps5", phrasings: [] });
+  const result = sanitiseAlternates("playstaton 5", {
+    product: "PlayStation 5",
+    phrasings: ["PS5", "playstaton 5", "ps5", 7, "PlayStation 5 Console", "Sony PS5"],
+  });
+  assert.deepEqual(result, { product: "PlayStation 5", phrasings: ["PlayStation 5", "PS5", "PlayStation 5 Console"] });
 });

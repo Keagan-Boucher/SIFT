@@ -47,6 +47,43 @@ export const understandQuery = onCall<{ query: string }, Promise<QueryUnderstand
   },
 );
 
+export interface SearchAlternates {
+  /** The corrected product name. Retries found with any phrasing are scored against this, not the typo. */
+  product: string;
+  /** Other ways to ask a retailer's search for it, most likely first. Never includes the query as typed. */
+  phrasings: string[];
+}
+
+const MAX_PHRASINGS = 3;
+
+const PHRASINGS_PROMPT = `You help a South African price-comparison app search retailer websites.
+Retailer site search matches words literally, so typos and unusual wording find nothing.
+The user typed a product search, possibly misspelled or abbreviated.
+Return JSON: {"product": string, "phrasings": [string]}
+- product: the exact real product name they most likely mean, correctly spelled. Do not add details they did not give.
+- phrasings: up to 3 short alternative search terms a retailer's search box would match for that product (the common name, the usual abbreviation, brand plus model). No filler words.`;
+
+/** Bounds the model's answer to a few short, distinct strings that differ from what was typed. */
+export function sanitiseAlternates(query: string, raw: unknown): SearchAlternates {
+  const value = (raw ?? {}) as { product?: unknown; phrasings?: unknown };
+  const product = typeof value.product === "string" && value.product.trim() ? value.product.trim().slice(0, 120) : query;
+  const seen = new Set([query.trim().toLowerCase()]);
+  const phrasings: string[] = [];
+  for (const candidate of [product, ...(Array.isArray(value.phrasings) ? value.phrasings : [])]) {
+    if (typeof candidate !== "string") continue;
+    const phrasing = candidate.trim().slice(0, 80);
+    if (!phrasing || seen.has(phrasing.toLowerCase())) continue;
+    seen.add(phrasing.toLowerCase());
+    phrasings.push(phrasing);
+  }
+  return { product, phrasings: phrasings.slice(0, MAX_PHRASINGS) };
+}
+
+/** Fetched once per search, then tried on any retailer whose own search found nothing for the typed query. */
+export async function searchAlternates(query: string): Promise<SearchAlternates> {
+  return sanitiseAlternates(query, await groqJson(PHRASINGS_PROMPT, query));
+}
+
 const PICK_PROMPT = `You check product listings for a price-comparison app.
 Given the user's search and numbered listing titles, pick the listing that is exactly the product they want:
 same brand, model and variant (storage, size, edition, colour if given). Not an accessory, part, refurbished or used item, and not a bundle unless they asked for one. Allow for typos in the search.

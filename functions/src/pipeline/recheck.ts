@@ -8,6 +8,7 @@ import { normaliseDomain } from "../net/fetchPage";
 import { CONFIRM_THRESHOLD } from "../matching/score";
 import { scrapeSource } from "./scrapeSource";
 import { GROQ_API_KEY } from "../ai/groq";
+import { searchAlternates } from "../ai/search";
 
 const SOURCE_CONCURRENCY = 4;
 const SAVED_SEARCH_CONCURRENCY = 3;
@@ -38,11 +39,12 @@ export async function recheck(db: Firestore, snapshot: DocumentSnapshot): Promis
   const domains = [...new Set((data.sources ?? []).map(normaliseDomain).filter(Boolean))];
   const previousLowestPrice = typeof data.lowestPrice === "number" ? data.lowestPrice : null;
 
+  const alternates = await searchAlternates(data.query);
   const limit = pLimit(SOURCE_CONCURRENCY);
   const prices = await Promise.all(
     domains.map((domain) =>
       limit(async () => {
-        const outcome = await scrapeSource(data.query, domain, data.userSearchUrls?.[domain]);
+        const outcome = await scrapeSource(data.query, domain, data.userSearchUrls?.[domain], undefined, alternates);
         if (!outcome.ok) return null;
         const best = outcome.candidates.find((candidate) => candidate.matchConfidence >= CONFIRM_THRESHOLD);
         return best?.price ?? null;
